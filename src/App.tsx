@@ -3,7 +3,7 @@ import {
   ShoppingBag, Trash2, X, Star, Calendar, MessageSquare, Menu, Globe, Phone,
   MapPin, Heart, Share2, Facebook, Instagram, Send, Sparkles, CheckCircle2, ChevronRight, ArrowRight, CornerDownRight, Loader, Tag, ShieldAlert
 } from 'lucide-react';
-import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification } from './types';
+import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from './types';
 import {
   getStoredProducts, saveStoredProducts,
   getStoredCollections, saveStoredCollections,
@@ -15,13 +15,17 @@ import {
 import {
   listenToOrders,
   listenToReviews,
+  listenToBanners,
   addOrderToFirestore,
   updateOrderStatusInFirestore,
   updateOrderInFirestore,
   deleteOrderFromFirestore,
   addReviewToFirestore,
   approveReviewInFirestore,
-  deleteReviewInFirestore
+  deleteReviewInFirestore,
+  addBannerToFirestore,
+  updateBannerInFirestore,
+  deleteBannerFromFirestore
 } from './firebase';
 
 // Core layout components
@@ -41,6 +45,7 @@ export default function App() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [notifications, setNotifications] = useState<NewsletterNotification[]>([]);
+  const [banners, setBanners] = useState<HomeBanner[]>([]);
 
   // Navigation Routing
   const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'checkout' | 'admin' | 'collection' | 'category'>('home');
@@ -98,6 +103,22 @@ export default function App() {
       }
     );
 
+    // Bind real-time banners sync from Firestore
+    const storedBanners = localStorage.getItem('alhamd_banners');
+    if (storedBanners) {
+      setBanners(JSON.parse(storedBanners));
+    }
+
+    const unsubscribeBanners = listenToBanners(
+      (firestoreBanners) => {
+        setBanners(firestoreBanners);
+        localStorage.setItem('alhamd_banners', JSON.stringify(firestoreBanners));
+      },
+      (error) => {
+        console.warn('Firestore banners sync deactivated:', error);
+      }
+    );
+
     // Load custom notifications if existing
     const storedNotifs = localStorage.getItem('alhamd_notifications');
     if (storedNotifs) {
@@ -107,6 +128,7 @@ export default function App() {
     return () => {
       unsubscribeOrders();
       unsubscribeReviews();
+      unsubscribeBanners();
     };
   }, []);
 
@@ -252,6 +274,40 @@ export default function App() {
       await addReviewToFirestore(newReview);
     } catch (err) {
       console.error('Failed to write review to Firestore database:', err);
+    }
+  };
+
+  // --- Custom banner management handlers ---
+  const handleAddBanner = async (banner: HomeBanner) => {
+    const updatedBanners = [...banners, banner];
+    setBanners(updatedBanners);
+    localStorage.setItem('alhamd_banners', JSON.stringify(updatedBanners));
+    try {
+      await addBannerToFirestore(banner);
+    } catch (err) {
+      console.error('Failed to save custom banner to Firestore:', err);
+    }
+  };
+
+  const handleUpdateBanner = async (bannerId: string, updated: HomeBanner) => {
+    const updatedBanners = banners.map(b => b.id === bannerId ? updated : b);
+    setBanners(updatedBanners);
+    localStorage.setItem('alhamd_banners', JSON.stringify(updatedBanners));
+    try {
+      await updateBannerInFirestore(bannerId, updated);
+    } catch (err) {
+      console.error('Failed to update banner in Firestore:', err);
+    }
+  };
+
+  const handleDeleteBanner = async (bannerId: string) => {
+    const updatedBanners = banners.filter(b => b.id !== bannerId);
+    setBanners(updatedBanners);
+    localStorage.setItem('alhamd_banners', JSON.stringify(updatedBanners));
+    try {
+      await deleteBannerFromFirestore(bannerId);
+    } catch (err) {
+      console.error('Failed to delete banner from Firestore:', err);
     }
   };
 
@@ -472,6 +528,7 @@ export default function App() {
             reviews={reviews}
             subscriptions={subscriptions}
             notifications={notifications}
+            banners={banners}
             onAddProduct={handleAddProduct}
             onEditProduct={handleEditProduct}
             onDeleteProduct={handleDeleteProduct}
@@ -483,6 +540,9 @@ export default function App() {
             onApproveReview={handleApproveReview}
             onRejectReview={handleRejectReview}
             onSendProductNotification={handleSendProductNotification}
+            onAddBanner={handleAddBanner}
+            onUpdateBanner={handleUpdateBanner}
+            onDeleteBanner={handleDeleteBanner}
             onClose={() => handleNavigation('home')}
           />
         ) : currentView === 'about' ? (
@@ -706,7 +766,7 @@ export default function App() {
           <div className="space-y-12">
             
             {/* Top Carousel Banner Section */}
-            <HeroSlider onNavigate={handleNavigation} />
+            <HeroSlider onNavigate={handleNavigation} slides={banners} />
 
             {/* If search query entered, display filter results instead of default blocks */}
             {searchQuery.trim() !== '' ? (

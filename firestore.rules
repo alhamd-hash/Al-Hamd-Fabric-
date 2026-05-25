@@ -107,5 +107,33 @@ service cloud.firestore {
       // Admin can reject (delete) reviews from the moderation view
       allow delete: if true;
     }
+
+    // Match rules for the "banners" collection
+    match /banners/{bannerId} {
+      // Banners show on the storefront, so they are public to list and read
+      allow get, list: if true;
+
+      // Allow admin / authorized client actions to manage banners with schema sanity
+      allow create, update: if (
+        isValidId(bannerId) &&
+        incoming().id == bannerId &&
+        incoming().keys().hasAll([
+          'id', 'title', 'subtitle', 'ctaText', 'image', 'targetView', 'targetPayload', 'badge', 'isActive', 'order'
+        ]) &&
+        incoming().keys().size() == 10 &&
+        incoming().title is string && incoming().title.size() <= 200 &&
+        incoming().subtitle is string && incoming().subtitle.size() <= 1000 &&
+        incoming().ctaText is string && incoming().ctaText.size() <= 100 &&
+        incoming().image is string && incoming().image.size() <= 1500000 &&
+        incoming().targetView is string && incoming().targetView in ['home', 'collection', 'category'] &&
+        incoming().targetPayload is string && incoming().targetPayload.size() <= 200 &&
+        incoming().badge is string && incoming().badge.size() <= 100 &&
+        incoming().isActive is bool &&
+        incoming().order is number
+      );
+
+      // Support removing/deleting old banners from the dashboard
+      allow delete: if isValidId(bannerId);
+    }
   }
 }

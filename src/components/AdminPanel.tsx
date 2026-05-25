@@ -3,7 +3,7 @@ import {
   Lock, Settings, ShoppingBag, MessageSquare, Plus, Trash2, Edit2, Filter,
   Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText
 } from 'lucide-react';
-import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification } from '../types';
+import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from '../types';
 import { formatPKR } from '../utils';
 
 interface AdminPanelProps {
@@ -13,6 +13,7 @@ interface AdminPanelProps {
   reviews: Review[];
   subscriptions: Subscription[];
   notifications: NewsletterNotification[];
+  banners: HomeBanner[];
   onAddProduct: (prod: Product) => void;
   onEditProduct: (prod: Product) => void;
   onDeleteProduct: (id: string) => void;
@@ -24,6 +25,9 @@ interface AdminPanelProps {
   onApproveReview: (reviewId: string) => void;
   onRejectReview: (reviewId: string) => void;
   onSendProductNotification: (prodName: string, prodImage: string) => void;
+  onAddBanner: (banner: HomeBanner) => void;
+  onUpdateBanner: (bannerId: string, banner: HomeBanner) => void;
+  onDeleteBanner: (bannerId: string) => void;
   onClose: () => void;
 }
 
@@ -34,6 +38,7 @@ export default function AdminPanel({
   reviews,
   subscriptions,
   notifications,
+  banners = [],
   onAddProduct,
   onEditProduct,
   onDeleteProduct,
@@ -45,6 +50,9 @@ export default function AdminPanel({
   onApproveReview,
   onRejectReview,
   onSendProductNotification,
+  onAddBanner,
+  onUpdateBanner,
+  onDeleteBanner,
   onClose
 }: AdminPanelProps) {
   // Authentication State
@@ -53,7 +61,7 @@ export default function AdminPanel({
   const [loginError, setLoginError] = useState('');
 
   // Dashboard Sub-views
-  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews'>('orders');
+  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'products' | 'collections' | 'subscribers'>('orders');
 
   // --- Order Filter states ---
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
@@ -98,6 +106,25 @@ export default function AdminPanel({
 
   const [isNewArrival, setIsNewArrival] = useState(true);
   const [isHotSelling, setIsHotSelling] = useState(false);
+
+  // --- New/Edit Home Banner Form States ---
+  const [showBannerForm, setShowBannerForm] = useState(false);
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
+  const [bannerTitle, setBannerTitle] = useState('');
+  const [bannerSubtitle, setBannerSubtitle] = useState('');
+  const [bannerCtaText, setBannerCtaText] = useState('Shop Collection');
+  const [bannerImage, setBannerImage] = useState('');
+  const [bannerTargetView, setBannerTargetView] = useState<'home' | 'collection' | 'category'>('home');
+  const [bannerTargetPayload, setBannerTargetPayload] = useState('');
+  const [bannerBadge, setBannerBadge] = useState('EID SPECIAL');
+  const [bannerIsActive, setBannerIsActive] = useState(true);
+  const [bannerOrder, setBannerOrder] = useState(0);
+  const [bannerImageError, setBannerImageError] = useState('');
+
+  // Dual levels dropdown state
+  const [bannerLinkType, setBannerLinkType] = useState<'gents-collection' | 'gents-category' | 'ladies-collection' | 'ladies-category' | 'none'>('none');
+  const [bannerIdToDelete, setBannerIdToDelete] = useState<string | null>(null);
+  const [activeConfirmKey, setActiveConfirmKey] = useState<string | null>(null);
 
   // Authentication submission
   const handleLogin = (e: React.FormEvent) => {
@@ -315,6 +342,111 @@ export default function AdminPanel({
     setShowProdForm(true);
   };
 
+  // --- Home Banner Form Handlers ---
+  const handleBannerImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1 * 1024 * 1024) {
+      setBannerImageError('The image is too large! Please upload a compressed photo under 1MB.');
+      return;
+    }
+
+    setBannerImageError('');
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setBannerImage(reader.result);
+      }
+    };
+    reader.onerror = () => {
+      setBannerImageError('Failed to read the file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBannerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bannerImage.trim()) {
+      setBannerImageError('Banner must have an image!');
+      return;
+    }
+
+    const payload: HomeBanner = {
+      id: editingBannerId || `banner-${Date.now()}`,
+      title: bannerTitle,
+      subtitle: bannerSubtitle,
+      ctaText: bannerCtaText,
+      image: bannerImage,
+      targetView: bannerTargetView,
+      targetPayload: bannerTargetPayload,
+      badge: bannerBadge,
+      isActive: bannerIsActive,
+      order: Number(bannerOrder) || 0
+    };
+
+    if (editingBannerId) {
+      await onUpdateBanner(editingBannerId, payload);
+    } else {
+      await onAddBanner(payload);
+    }
+
+    resetBannerForm();
+  };
+
+  const startEditBanner = (banner: HomeBanner) => {
+    setEditingBannerId(banner.id);
+    setBannerTitle(banner.title);
+    setBannerSubtitle(banner.subtitle);
+    setBannerCtaText(banner.ctaText);
+    setBannerImage(banner.image);
+    setBannerTargetView(banner.targetView || 'home');
+    setBannerTargetPayload(banner.targetPayload || '');
+    setBannerBadge(banner.badge);
+    setBannerIsActive(banner.isActive);
+    setBannerOrder(banner.order);
+    setBannerImageError('');
+
+    // Dynamically calculate the appropriate banner link type
+    if (banner.targetView === 'home' || !banner.targetView) {
+      setBannerLinkType('none');
+    } else if (banner.targetView === 'collection') {
+      const parentCol = collections.find(c => c.id === banner.targetPayload);
+      if (parentCol && parentCol.isGents) {
+        setBannerLinkType('gents-collection');
+      } else {
+        setBannerLinkType('ladies-collection');
+      }
+    } else if (banner.targetView === 'category') {
+      const isGentsCat = ['Shalwar Kameez', 'Wash & Wear', 'Cotton Suits', 'Casual Wear', 'Premium Suits'].includes(banner.targetPayload);
+      if (isGentsCat) {
+        setBannerLinkType('gents-category');
+      } else {
+        setBannerLinkType('ladies-category');
+      }
+    } else {
+      setBannerLinkType('none');
+    }
+
+    setShowBannerForm(true);
+  };
+
+  const resetBannerForm = () => {
+    setEditingBannerId(null);
+    setBannerTitle('');
+    setBannerSubtitle('');
+    setBannerCtaText('Shop Collection');
+    setBannerImage('');
+    setBannerTargetView('home');
+    setBannerTargetPayload('');
+    setBannerBadge('EID SPECIAL');
+    setBannerIsActive(true);
+    setBannerOrder(banners.length);
+    setBannerImageError('');
+    setBannerLinkType('none');
+    setShowBannerForm(false);
+  };
+
   // If Admin is not logged in, showcase secure locks form
   if (!isAuthenticated) {
     return (
@@ -447,6 +579,23 @@ export default function AdminPanel({
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setCurrentTab('banners')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'banners' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Eye size={14} className="text-[#c5a880]" />
+              Home Page Banners
+            </span>
+            {banners.length > 0 && (
+              <span className="bg-[#c5a880]/20 text-[#c5a880] font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                {banners.length} Banners
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Selected Dashboard Detail Panel (Grid-Columns: 9) */}
@@ -568,13 +717,22 @@ export default function AdminPanel({
                             <button
                               type="button"
                               onClick={() => {
-                                if (window.confirm("Are you sure this parcel has been received? Confirming will delete all customer's personal shipping details, address, and numbers for privacy, keeping only the suit name/price and order date.")) {
+                                const key = 'order-received-' + order.id;
+                                if (activeConfirmKey === key) {
                                   onMarkOrderReceived(order.id);
+                                  setActiveConfirmKey(null);
+                                } else {
+                                  setActiveConfirmKey(key);
+                                  setTimeout(() => setActiveConfirmKey(null), 5000);
                                 }
                               }}
-                              className="py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[9px] sm:text-[10px] uppercase rounded-lg shadow-2xs transition-all tracking-wider cursor-pointer font-sans shrink-0 animate-pulse"
+                              className={`py-1 px-2.5 font-extrabold text-[9px] sm:text-[10px] uppercase rounded-lg shadow-2xs transition-all tracking-wider cursor-pointer font-sans shrink-0 ${
+                                activeConfirmKey === 'order-received-' + order.id
+                                  ? 'bg-amber-500 text-black animate-bounce'
+                                  : 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+                              }`}
                             >
-                              ✓ Received Parcel
+                              {activeConfirmKey === 'order-received-' + order.id ? '⚠️ Tap again to confirm!' : '✓ Received Parcel'}
                             </button>
                           )}
 
@@ -783,6 +941,469 @@ export default function AdminPanel({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 2.5: HOME PAGE BANNERS MANAGEMENT */}
+          {currentTab === 'banners' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* CUSTOM IN-UI DELETE CONFIRMATION MODAL */}
+              {bannerIdToDelete && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] animate-fade-in">
+                  <div className="bg-white p-6 rounded-2xl max-w-sm w-full space-y-4 shadow-2xl text-center border border-gray-100">
+                    <span className="text-3xl inline-block mt-1">🗑️</span>
+                    <div className="space-y-1">
+                      <h4 className="font-serif font-bold text-gray-900 text-base">Delete Banner?</h4>
+                      <p className="text-stone-400 text-xs leading-relaxed">
+                        This action will immediately remove this custom banner from the active slider carousel in the storefront.
+                      </p>
+                    </div>
+                    <div className="flex gap-2.5 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setBannerIdToDelete(null)}
+                        className="flex-1 py-2 border border-stone-200 hover:bg-stone-50 text-stone-600 font-bold text-xs rounded-md uppercase tracking-wider cursor-pointer transition-colors"
+                      >
+                        No, Keep it
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const id = bannerIdToDelete;
+                          setBannerIdToDelete(null);
+                          onDeleteBanner(id);
+                        }}
+                        className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-md uppercase tracking-wider cursor-pointer shadow-sm transition-colors"
+                      >
+                        Delete Banner
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#1e152a]">Home Carousel Slider Banners</h3>
+                  <p className="text-xs text-gray-400">
+                    Upload new gallery photos, configure gorgeous titles and descriptions, customize button names, and link slides to categories/collections.
+                  </p>
+                </div>
+                {!showBannerForm && (
+                  <button
+                    onClick={() => {
+                      resetBannerForm();
+                      setShowBannerForm(true);
+                    }}
+                    className="px-4 py-2 bg-[#1e152a] hover:bg-[#c5a880] text-white hover:text-black font-semibold text-xs rounded flex items-center gap-1.5 transition-all uppercase cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    Add New Banner
+                  </button>
+                )}
+              </div>
+
+              {/* BANNER EDIT / CREATE FORM */}
+              {showBannerForm && (
+                <form onSubmit={handleBannerSubmit} className="p-5 bg-stone-50 border border-gray-200/60 rounded-xl space-y-4 text-xs animate-slide-up">
+                  <div className="flex items-center justify-between pb-2 border-b border-gray-150">
+                    <h4 className="font-serif font-bold text-sm text-gray-800">
+                      {editingBannerId ? '✏️ Rewrite Slider Banner' : '✨ Design New Home Slide Banner'}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={resetBannerForm}
+                      className="p-1 text-gray-400 hover:text-red-500 rounded"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Title */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Slide Display Title *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Gents Exclusive Cotton Collection"
+                        value={bannerTitle}
+                        onChange={(e) => setBannerTitle(e.target.value)}
+                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Badge */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Ribbon Badge Tag Text</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. EID 2026, BEST SELLER, REGIONAL SPEC"
+                        value={bannerBadge}
+                        onChange={(e) => setBannerBadge(e.target.value)}
+                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Description/Subtitle */}
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Short Description / Subtitle *</label>
+                      <textarea
+                        required
+                        rows={2}
+                        placeholder="Provide detailed description of this Eid collection suit or discount offer..."
+                        value={bannerSubtitle}
+                        onChange={(e) => setBannerSubtitle(e.target.value)}
+                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:border-[#c5a880]"
+                      />
+                    </div>
+
+                    {/* Image Upload Option */}
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                        Slider Photo * (Upload directly from device gallery or paste direct link URL)
+                      </label>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                        <div className="md:col-span-2 space-y-2">
+                          {/* File input */}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleBannerImageUpload}
+                            className="w-full text-xs text-stone-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-stone-100 file:text-stone-700 hover:file:bg-stone-200 cursor-pointer"
+                          />
+                          {/* Fallback link input */}
+                          <input
+                            type="text"
+                            placeholder="Or paste direct image URL here..."
+                            value={bannerImage.startsWith('data:image/') ? '' : bannerImage}
+                            onChange={(e) => {
+                              if (e.target.value.trim()) {
+                                setBannerImage(e.target.value);
+                              }
+                            }}
+                            className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Image Preview Window */}
+                        <div className="h-28 border border-gray-200/80 rounded bg-white flex items-center justify-center overflow-hidden relative group">
+                          {bannerImage ? (
+                            <>
+                              <img src={bannerImage} alt="Banner Preview" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setBannerImage('')}
+                                className="absolute top-1 right-1 p-1 bg-red-600 hover:bg-red-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X size={10} />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-gray-400 font-mono text-[9px]">Preview Grid</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {bannerImageError && (
+                        <p className="text-red-600 font-semibold text-[10px] sm:text-xs mt-1.5">{bannerImageError}</p>
+                      )}
+                    </div>
+
+                    {/* Link View Target (Step 1: Selecting the Gender & Category/Collection Sector) */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                        Where does this banner lead to? *
+                      </label>
+                      <select
+                        value={bannerLinkType}
+                        onChange={(e) => {
+                          const val = e.target.value as any;
+                          setBannerLinkType(val);
+                          
+                          if (val === 'none') {
+                            setBannerTargetView('home');
+                            setBannerTargetPayload('');
+                          } else if (val === 'gents-collection') {
+                            setBannerTargetView('collection');
+                            const gentsCols = collections.filter(c => c.isGents);
+                            setBannerTargetPayload(gentsCols.length > 0 ? gentsCols[0].id : '');
+                          } else if (val === 'ladies-collection') {
+                            setBannerTargetView('collection');
+                            const ladiesCols = collections.filter(c => !c.isGents);
+                            setBannerTargetPayload(ladiesCols.length > 0 ? ladiesCols[0].id : '');
+                          } else if (val === 'gents-category') {
+                            setBannerTargetView('category');
+                            setBannerTargetPayload('Cotton Suits');
+                          } else if (val === 'ladies-category') {
+                            setBannerTargetView('category');
+                            setBannerTargetPayload('2 Piece');
+                          }
+                        }}
+                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded font-semibold text-gray-800 cursor-pointer focus:outline-none focus:border-[#c5a880]"
+                      >
+                        <option value="none">✨ Simple Static Banner (No Redirection Link)</option>
+                        <option value="gents-collection">🧔 Gents Collection</option>
+                        <option value="gents-category">👔 Gents Categories</option>
+                        <option value="ladies-collection">👩 Ladies Collection</option>
+                        <option value="ladies-category">👗 Ladies Categories</option>
+                      </select>
+                    </div>
+
+                    {/* Link Target Payload (Step 2: Selecting the exact item from the filtered items) */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                        Select Destination Target *
+                      </label>
+                      
+                      {bannerLinkType === 'none' && (
+                        <input
+                          type="text"
+                          disabled
+                          placeholder="No redirection needed"
+                          value="Informational Banner only"
+                          className="w-full bg-gray-100 border border-gray-150 px-3 py-2 rounded text-gray-400 italic"
+                        />
+                      )}
+
+                      {bannerLinkType === 'gents-collection' && (
+                        <select
+                          required
+                          value={bannerTargetPayload}
+                          onChange={(e) => setBannerTargetPayload(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
+                        >
+                          <option value="">-- Choose Gents Collection --</option>
+                          {collections.filter(c => c.isGents).map(col => (
+                            <option key={col.id} value={col.id}>{col.name}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {bannerLinkType === 'ladies-collection' && (
+                        <select
+                          required
+                          value={bannerTargetPayload}
+                          onChange={(e) => setBannerTargetPayload(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
+                        >
+                          <option value="">-- Choose Ladies Collection --</option>
+                          {collections.filter(c => !c.isGents).map(col => (
+                            <option key={col.id} value={col.id}>{col.name}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {bannerLinkType === 'gents-category' && (
+                        <select
+                          required
+                          value={bannerTargetPayload}
+                          onChange={(e) => setBannerTargetPayload(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
+                        >
+                          {['Shalwar Kameez', 'Wash & Wear', 'Cotton Suits', 'Casual Wear', 'Premium Suits'].map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {bannerLinkType === 'ladies-category' && (
+                        <select
+                          required
+                          value={bannerTargetPayload}
+                          onChange={(e) => setBannerTargetPayload(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
+                        >
+                          {['2 Piece', '3 Piece', 'Lawn Collection', 'Pret Wear', 'Embroidered'].map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Custom Button text CTA */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1.5 align-middle">
+                        <input
+                          type="checkbox"
+                          checked={bannerCtaText !== ''}
+                          onChange={(e) => {
+                            setBannerCtaText(e.target.checked ? 'Shop Collection' : '');
+                          }}
+                          className="rounded cursor-pointer"
+                        />
+                        <span>Enable Call-To-Action Button</span>
+                      </label>
+                      {bannerCtaText !== '' ? (
+                        <input
+                          type="text"
+                          placeholder="Button label: Like Buy Now, Visit, Purchase"
+                          value={bannerCtaText}
+                          onChange={(e) => setBannerCtaText(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none mt-1"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          disabled
+                          placeholder="CTA Button is hidden"
+                          className="w-full bg-gray-100 border border-gray-200 px-3 py-2 rounded mt-1"
+                        />
+                      )}
+                      {bannerCtaText !== '' && (
+                        <div className="flex gap-1.5 mt-1">
+                          {['Shop Collection', 'Buy Now', 'Visit', 'Purchase'].map(btnText => (
+                            <button
+                              key={btnText}
+                              type="button"
+                              onClick={() => setBannerCtaText(btnText)}
+                              className="px-1.5 py-0.5 border border-stone-200 hover:border-[#c5a880] rounded-sm text-[8px] bg-[#faf9f6]/80 text-stone-500 hover:text-black"
+                            >
+                              {btnText}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order and Active state */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Sorting Order</label>
+                        <input
+                          type="number"
+                          value={bannerOrder}
+                          onChange={(e) => setBannerOrder(Number(e.target.value) || 0)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded text-center focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="flex flex-col justify-center pl-2">
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-3.5 align-middle">
+                          <input
+                            type="checkbox"
+                            checked={bannerIsActive}
+                            onChange={(e) => setBannerIsActive(e.target.checked)}
+                            className="rounded cursor-pointer"
+                          />
+                          <span>Visible On Site</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-3 border-t border-gray-200/50">
+                    <button
+                      type="button"
+                      onClick={resetBannerForm}
+                      className="flex-1 py-2 text-xs font-semibold border border-gray-200 rounded text-gray-700 hover:bg-gray-50 uppercase cursor-pointer"
+                    >
+                      Dismiss
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 bg-[#1e152a] text-white hover:bg-[#c5a880] hover:text-black text-xs font-bold rounded transition-all uppercase tracking-wider cursor-pointer shadow-sm"
+                    >
+                      {editingBannerId ? 'Update Permanent Slide' : 'Commit Permanent Slide'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* BANNERS INVENTORY LIST */}
+              <div className="space-y-4">
+                <h4 className="font-serif font-bold text-sm text-[#1e152a] pb-2 border-b border-stone-100">
+                  Active Carousel Banners ({banners.length})
+                </h4>
+
+                {banners.length === 0 ? (
+                  <div className="bg-[#faf9f6]/40 border border-dashed border-stone-200 rounded-xl py-12 px-4 text-center space-y-2">
+                    <span className="text-3xl">🖼️</span>
+                    <h5 className="font-serif font-bold text-gray-700 text-sm">No Custom Banners Uploaded</h5>
+                    <p className="text-stone-400 text-xs max-w-sm mx-auto">
+                      The active storefront will automatically loop through the default pre-set "Gents Eid cotton suits" and "Ladies Premium Shawls" slides.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {banners.map((slide) => (
+                      <div
+                        key={slide.id}
+                        className={`p-4 bg-white border rounded-xl flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between text-xs transition-all ${
+                          slide.isActive ? 'border-stone-200 shadow-3xs' : 'border-dashed border-stone-200 opacity-60 bg-stone-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Visual Thumbnail */}
+                          <div className="w-24 h-16 rounded overflow-hidden bg-gray-100 border border-stone-200 relative shrink-0">
+                            <img src={slide.image} alt={slide.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                            <span className="absolute bottom-1 right-1 bg-black/70 text-[8px] text-white px-1.5 py-0.5 rounded font-mono">
+                              #{slide.order}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            {/* Badge & Title */}
+                            <div className="flex items-center gap-1.5">
+                              {slide.badge && (
+                                <span className="bg-[#c5a880] text-black text-[8px] font-extrabold px-1.5 py-0.5 rounded-xs uppercase leading-none">
+                                  {slide.badge}
+                                </span>
+                              )}
+                              <span className={`text-[8px] tracking-wider font-bold uppercase rounded px-1.5 py-0.5 leading-none ${
+                                slide.isActive ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-stone-150 text-stone-600 border border-stone-200'
+                              }`}>
+                                {slide.isActive ? 'ACTIVE LINK ON HOME' : 'DRAFT INACTIVE'}
+                              </span>
+                            </div>
+                            
+                            <h5 className="font-serif font-bold text-gray-800 text-sm leading-snug">{slide.title}</h5>
+                            
+                            {slide.subtitle && (
+                              <p className="text-stone-400 text-[10px] line-clamp-1">{slide.subtitle}</p>
+                            )}
+                            
+                            {/* CTA & Targets */}
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stone-500 font-mono mt-1 leading-none">
+                              {slide.ctaText && (
+                                <span className="flex items-center gap-1">
+                                  <span>Button label:</span>
+                                  <strong className="text-stone-700 italic">"{slide.ctaText}"</strong>
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <span>Redirection views:</span>
+                                <span className="bg-stone-50 px-1 py-0.5 text-stone-600 border border-stone-100/60 rounded uppercase text-[8px]">
+                                  {slide.targetView} {slide.targetPayload && `→ ${slide.targetPayload}`}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                          <button
+                            onClick={() => startEditBanner(slide)}
+                            className="p-2 border border-stone-200 rounded text-stone-600 hover:text-black hover:border-yellow-400 hover:bg-amber-50/20 cursor-pointer"
+                            title="Edit this banner"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            onClick={() => setBannerIdToDelete(slide.id)}
+                            className="p-2 border border-stone-200 rounded text-stone-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50/20 cursor-pointer"
+                            title="Delete Banner"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1119,14 +1740,27 @@ export default function AdminPanel({
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm(`Sure to delete product "${prod.name}"? This action holds no refunds.`)) {
+                              const key = 'delete-prod-' + prod.id;
+                              if (activeConfirmKey === key) {
                                 onDeleteProduct(prod.id);
+                                setActiveConfirmKey(null);
+                              } else {
+                                setActiveConfirmKey(key);
+                                setTimeout(() => setActiveConfirmKey(null), 4000);
                               }
                             }}
-                            className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors cursor-pointer"
-                            title="Delete"
+                            className={`p-1.5 rounded transition-all cursor-pointer ${
+                              activeConfirmKey === 'delete-prod-' + prod.id
+                                ? 'text-red-600 bg-red-50 hover:bg-red-100 animate-pulse'
+                                : 'text-gray-400 hover:text-red-600'
+                            }`}
+                            title={activeConfirmKey === 'delete-prod-' + prod.id ? "Click again to confirm" : "Delete product"}
                           >
-                            <Trash2 size={13} />
+                            {activeConfirmKey === 'delete-prod-' + prod.id ? (
+                              <span className="text-[9px] font-extrabold tracking-tight px-0.5 uppercase leading-none">TAP TO CONFIRM</span>
+                            ) : (
+                              <Trash2 size={13} />
+                            )}
                           </button>
                         </div>
                       </div>
@@ -1256,14 +1890,27 @@ export default function AdminPanel({
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`Sure to delete collection "${col.name}"? This deletes matching indexes.`)) {
+                          const key = 'delete-col-' + col.id;
+                          if (activeConfirmKey === key) {
                             onDeleteCollection(col.id);
+                            setActiveConfirmKey(null);
+                          } else {
+                            setActiveConfirmKey(key);
+                            setTimeout(() => setActiveConfirmKey(null), 4000);
                           }
                         }}
-                        className="p-1 text-gray-400 hover:text-red-500 rounded cursor-pointer"
-                        title="Delete"
+                        className={`p-1 rounded transition-all cursor-pointer ${
+                          activeConfirmKey === 'delete-col-' + col.id
+                            ? 'text-red-500 bg-red-50 hover:bg-red-100 animate-pulse'
+                            : 'text-gray-400 hover:text-red-500'
+                        }`}
+                        title={activeConfirmKey === 'delete-col-' + col.id ? "Click again to confirm" : "Delete collection"}
                       >
-                        <Trash2 size={13} />
+                        {activeConfirmKey === 'delete-col-' + col.id ? (
+                          <span className="text-[9px] font-extrabold tracking-tight px-0.5 uppercase leading-none">TAP TO CONFIRM</span>
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
                       </button>
                     </div>
                   </div>

@@ -79,6 +79,19 @@ export interface Subscription {
   createdAt: string;
 }
 
+export interface HomeBanner {
+  id: string;
+  title: string;
+  subtitle: string;
+  ctaText: string;
+  image: string;
+  targetView: 'home' | 'collection' | 'category';
+  targetPayload: string;
+  badge: string;
+  isActive: boolean;
+  order: number;
+}
+
 export interface NewsletterNotification {
   id: string;
   productName: string;

@@ -113,6 +113,54 @@
         }
       },
       "required": ["id", "productId", "productName", "customerName", "rating", "comment", "approved", "createdAt"]
+    },
+    "HomeBanner": {
+      "title": "HomeBanner",
+      "description": "Slider / Hero image banners showed on the client dashboard header",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique banner ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Main banner headline"
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Short secondary description"
+        },
+        "ctaText": {
+          "type": "string",
+          "description": "Button call to action text"
+        },
+        "image": {
+          "type": "string",
+          "description": "High-res banner image URL or Base64 data string"
+        },
+        "targetView": {
+          "type": "string",
+          "enum": ["home", "collection", "category"]
+        },
+        "targetPayload": {
+          "type": "string",
+          "description": "The category name or collection ID linked with the banner"
+        },
+        "badge": {
+          "type": "string",
+          "description": "Optional upper small badge text"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the banner is active or hidden"
+        },
+        "order": {
+          "type": "number",
+          "description": "Sort order placement of the slide"
+        }
+      },
+      "required": ["id", "title", "subtitle", "ctaText", "image", "targetView", "targetPayload", "badge", "isActive", "order"]
     }
   },
   "firestore": {
@@ -123,6 +171,10 @@
     "/reviews/{reviewId}": {
       "schema": "Review",
       "description": "Collection containing student reviews"
+    },
+    "/banners/{bannerId}": {
+      "schema": "HomeBanner",
+      "description": "Collection storing custom dashboard header banners"
     }
   }
 }

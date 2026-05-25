@@ -12,7 +12,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Order, Review, OrderStatus } from './types';
+import { Order, Review, OrderStatus, HomeBanner } from './types';
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
@@ -183,6 +183,55 @@ export function listenToReviews(onUpdate: (reviews: Review[]) => void, onError?:
       onError(error);
     } else {
       handleFirestoreError(error, OperationType.GET, REVIEWS_PATH);
+    }
+  });
+}
+
+// --- Custom Home Banners Firestore Utilities ---
+const BANNERS_PATH = 'banners';
+
+export async function addBannerToFirestore(banner: HomeBanner): Promise<void> {
+  const docRef = doc(db, BANNERS_PATH, banner.id);
+  try {
+    await setDoc(docRef, banner);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${BANNERS_PATH}/${banner.id}`);
+  }
+}
+
+export async function updateBannerInFirestore(bannerId: string, banner: HomeBanner): Promise<void> {
+  const docRef = doc(db, BANNERS_PATH, bannerId);
+  try {
+    await setDoc(docRef, banner);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `${BANNERS_PATH}/${bannerId}`);
+  }
+}
+
+export async function deleteBannerFromFirestore(bannerId: string): Promise<void> {
+  const docRef = doc(db, BANNERS_PATH, bannerId);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${BANNERS_PATH}/${bannerId}`);
+  }
+}
+
+export function listenToBanners(onUpdate: (banners: HomeBanner[]) => void, onError?: (err: Error) => void) {
+  const bannersCol = collection(db, BANNERS_PATH);
+  return onSnapshot(bannersCol, (snapshot) => {
+    const list: HomeBanner[] = [];
+    snapshot.forEach((d) => {
+      list.push(d.data() as HomeBanner);
+    });
+    // Sort reviews ascending by custom order property
+    list.sort((a, b) => a.order - b.order);
+    onUpdate(list);
+  }, (error) => {
+    if (onError) {
+      onError(error);
+    } else {
+      handleFirestoreError(error, OperationType.GET, BANNERS_PATH);
     }
   });
 }

@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper: Basic ID format constraint to block poisoning attacks
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper: Extract incoming resource data map
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Helper: Extract existing resource data map
+    function existing() {
+      return resource.data;
+    }
+
+    // Match rules for the "orders" collection
+    match /orders/{orderId} {
+      // Allow any guest customer to fetch their own single order tracking record
+      // and allow the admin to list and read all placed orders.
+      allow get, list: if true;
+
+      // Allow guest checkouts to place orders under strict schema criteria
+      allow create: if (
+        isValidId(orderId) &&
+        incoming().id == orderId &&
+        // Define exact allowed keys with optional whatsappNumber
+        incoming().keys().hasAll([
+          'id', 'customerName', 'phoneNumber', 'city', 'province',
+          'address', 'items', 'subtotal', 'deliveryCharges', 'total',
+          'paymentMethod', 'paymentStatus', 'status', 'createdAt'
+        ]) &&
+        (incoming().keys().size() == 14 || (incoming().keys().size() == 15 && 'whatsappNumber' in incoming().keys())) &&
+        
+        // Assert field types and exact sizes
+        incoming().customerName is string && incoming().customerName.size() <= 100 &&
+        (!('whatsappNumber' in incoming().keys()) || (incoming().whatsappNumber is string && incoming().whatsappNumber.size() <= 30)) &&
+        incoming().phoneNumber is string && incoming().phoneNumber.size() <= 30 &&
+        incoming().city is string && incoming().city.size() <= 60 &&
+        incoming().province is string && incoming().province.size() <= 40 &&
+        incoming().address is string && incoming().address.size() <= 500 &&
+        incoming().items is list && incoming().items.size() <= 50 &&
+        incoming().subtotal is number && incoming().subtotal >= 0 &&
+        incoming().deliveryCharges is number && incoming().deliveryCharges >= 0 &&
+        incoming().total is number && incoming().total >= 0 &&
+        incoming().paymentMethod is string && incoming().paymentMethod in ['cod', 'stripe'] &&
+        incoming().paymentStatus is string && incoming().paymentStatus in ['pending', 'paid', 'failed'] &&
+        incoming().status is string && incoming().status == 'Pending' &&
+        incoming().createdAt is string && incoming().createdAt.size() <= 50
+      );
+
+      // Allow the admin (or client-side order status updates) to change statuses or mark as received (redacting details)
+      allow update: if (
+        isValidId(orderId) && (
+          // Action 1: Regular status updates
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
+           incoming().status is string &&
+           incoming().status in ['Pending', 'Confirmed', 'Dispatched', 'On The Way', 'Delivered', 'Cancelled']) ||
+          
+          // Action 2: Privacy redaction update when parcel is confirmed as received
+          (incoming().isReceived == true &&
+           incoming().customerName == '')
+        )
+      );
+
+      // Allow cancelling/deleting orders from the database
+      allow delete: if isValidId(orderId);
+    }
+
+    // Match rules for the "reviews" collection
+    match /reviews/{reviewId} {
+      // Public reviews can be listed and retrieved
+      allow get, list: if true;
+
+      // Customers can submit reviews; must be initialized as approved: false
+      allow create: if (
+        isValidId(reviewId) &&
+        incoming().id == reviewId &&
+        incoming().keys().hasAll([
+          'id', 'productId', 'productName', 'customerName', 'rating', 'comment', 'approved', 'createdAt'
+        ]) &&
+        incoming().keys().size() == 8 &&
+        incoming().productId is string && incoming().productId.size() <= 128 &&
+        incoming().productName is string && incoming().productName.size() <= 150 &&
+        incoming().customerName is string && incoming().customerName.size() <= 100 &&
+        incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5 &&
+        incoming().comment is string && incoming().comment.size() <= 1000 &&
+        incoming().approved == false &&
+        incoming().createdAt is string && incoming().createdAt.size() <= 50
+      );
+
+      // Admin toggles approval state of reviews
+      allow update: if (
+        isValidId(reviewId) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['approved']) &&
+        incoming().approved is bool
+      );
+
+      // Admin can reject (delete) reviews from the moderation view
+      allow delete: if true;
+    }
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Customer unstitched suit fabric order invoice including delivery and billing details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique order identifier"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Full name of the recipient customer"
+        },
+        "whatsappNumber": {
+          "type": "string",
+          "description": "Customer contact WhatsApp number"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Required phone helpline for courier dispatch"
+        },
+        "city": {
+          "type": "string",
+          "description": "PAK destination city"
+        },
+        "province": {
+          "type": "string",
+          "description": "Province region"
+        },
+        "address": {
+          "type": "string",
+          "description": "Street direction and house number details"
+        },
+        "items": {
+          "type": "array",
+          "description": "List of ordered items with selected colors/images"
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Sum price of outfits"
+        },
+        "deliveryCharges": {
+          "type": "number",
+          "description": "Shipping fees of PKR 300 or 0 for free shipping"
+        },
+        "total": {
+          "type": "number",
+          "description": "Sum final invoice amount due"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["cod", "stripe"]
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["pending", "paid", "failed"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "Confirmed", "Dispatched", "On The Way", "Delivered", "Cancelled"]
+        },
+        "isReceived": {
+          "type": "boolean",
+          "description": "True if customer confirmed receipt and details are redacted"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Order placement timestamp"
+        }
+      },
+      "required": ["id", "customerName", "phoneNumber", "city", "province", "address", "items", "subtotal", "deliveryCharges", "total", "paymentMethod", "paymentStatus", "status", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer feedback and grading review",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Review unique tracking ID"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Associated unstitched garment product ID"
+        },
+        "productName": {
+          "type": "string",
+          "description": "Product display name prefix"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Name of the review author"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Numerical star rating bounded 1-5"
+        },
+        "comment": {
+          "type": "string",
+          "description": "Text testimonial feedback"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "Approved and visible to public"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "productId", "productName", "customerName", "rating", "comment", "approved", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection storing all placement orders"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Collection containing student reviews"
+    }
+  }
+}

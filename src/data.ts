@@ -1,4 +1,4 @@
-import { Collection, Product, Review } from './types';
+import { Collection, Product, Review, Category } from './types';
 
 export const INITIAL_COLLECTIONS: Collection[] = [
   // Gents Collections (Upper line)
@@ -386,3 +386,17 @@ export const INITIAL_REVIEWS: Review[] = [
     createdAt: '2026-05-24T18:45:00Z'
   }
 ];
+
+export const INITIAL_CATEGORIES: Category[] = [
+  { id: 'cat-2pc', name: '2 Piece', description: 'Chic printed 2-piece summer outfits for women.', isGents: false },
+  { id: 'cat-3pc', name: '3 Piece', description: 'Graceful embroidered 3-piece complete sets for women.', isGents: false },
+  { id: 'cat-lawn', name: 'Lawn Collection', description: 'Soft airy premium printed garden lawns for women.', isGents: false },
+  { id: 'cat-pret', name: 'Pret Wear', description: 'Pret-to-go designer printed styles for women.', isGents: false },
+  { id: 'cat-ladies-embroidered', name: 'Embroidered', description: 'Intricate premium embroidered garments for women.', isGents: false },
+  { id: 'cat-gents-sk', name: 'Shalwar Kameez', description: 'Classic gents shalwar kameez traditional wear.', isGents: true },
+  { id: 'cat-gents-ww', name: 'Wash & Wear', description: 'Soft wrinkle-free premium daily wear for men.', isGents: true },
+  { id: 'cat-gents-cotton', name: 'Cotton Suits', description: '100% pure premium high-texture cottons for men.', isGents: true },
+  { id: 'cat-gents-casual', name: 'Casual Wear', description: 'Easy breezy casual unstitched clothing for men.', isGents: true },
+  { id: 'cat-gents-premium', name: 'Premium Suits', description: 'Lustrous high-thread luxurious gents selections.', isGents: true }
+];
+

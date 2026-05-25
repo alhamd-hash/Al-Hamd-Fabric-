@@ -161,6 +161,53 @@
         }
       },
       "required": ["id", "title", "subtitle", "ctaText", "image", "targetView", "targetPayload", "badge", "isActive", "order"]
+    },
+    "Collection": {
+      "title": "Collection",
+      "description": "Collection of products",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "image": { "type": "string" },
+        "banner": { "type": "string" },
+        "description": { "type": "string" },
+        "isGents": { "type": "boolean" }
+      },
+      "required": ["id", "name", "image", "banner", "description"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product categories separating Gents and Ladies clothing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "isGents": { "type": "boolean" }
+      },
+      "required": ["id", "name", "description", "isGents"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Unstitched garments products list",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "shortDetails": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "images": { "type": "array" },
+        "category": { "type": "string" },
+        "collectionId": { "type": "string" },
+        "specifications": { "type": "object" },
+        "isLadiesSuit": { "type": "boolean" },
+        "isNewArrival": { "type": "boolean" },
+        "isHotSelling": { "type": "boolean" },
+        "rating": { "type": "number" }
+      },
+      "required": ["id", "name", "shortDetails", "description", "price", "images", "category", "collectionId", "isNewArrival", "isHotSelling", "rating"]
     }
   },
   "firestore": {
@@ -175,6 +222,18 @@
     "/banners/{bannerId}": {
       "schema": "HomeBanner",
       "description": "Collection storing custom dashboard header banners"
+    },
+    "/collections/{collectionId}": {
+      "schema": "Collection",
+      "description": "Product Collections"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Product Categories"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Garment Products list"
     }
   }
 }

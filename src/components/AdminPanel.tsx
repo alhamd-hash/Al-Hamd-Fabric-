@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import {
   Lock, Settings, ShoppingBag, MessageSquare, Plus, Trash2, Edit2, Filter,
-  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText
+  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload
 } from 'lucide-react';
-import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from '../types';
+import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from '../types';
 import { formatPKR } from '../utils';
 
 interface AdminPanelProps {
   products: Product[];
   collections: Collection[];
+  categories: Category[];
   orders: Order[];
   reviews: Review[];
   subscriptions: Subscription[];
@@ -20,6 +21,9 @@ interface AdminPanelProps {
   onAddCollection: (col: Collection) => void;
   onEditCollection: (col: Collection) => void;
   onDeleteCollection: (id: string) => void;
+  onAddCategory: (cat: Category) => void;
+  onEditCategory: (cat: Category) => void;
+  onDeleteCategory: (id: string) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   onMarkOrderReceived: (orderId: string) => void;
   onApproveReview: (reviewId: string) => void;
@@ -34,6 +38,7 @@ interface AdminPanelProps {
 export default function AdminPanel({
   products,
   collections,
+  categories = [],
   orders,
   reviews,
   subscriptions,
@@ -45,6 +50,9 @@ export default function AdminPanel({
   onAddCollection,
   onEditCollection,
   onDeleteCollection,
+  onAddCategory,
+  onEditCategory,
+  onDeleteCategory,
   onUpdateOrderStatus,
   onMarkOrderReceived,
   onApproveReview,
@@ -61,7 +69,7 @@ export default function AdminPanel({
   const [loginError, setLoginError] = useState('');
 
   // Dashboard Sub-views
-  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'products' | 'collections' | 'subscribers'>('orders');
+  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers'>('orders');
 
   // --- Order Filter states ---
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
@@ -76,6 +84,14 @@ export default function AdminPanel({
   const [colDesc, setColDesc] = useState('');
   const [colImage, setColImage] = useState('');
   const [colBanner, setColBanner] = useState('');
+  const [colIsGents, setColIsGents] = useState(true);
+
+  // --- New Category Form States ---
+  const [showCatForm, setShowCatForm] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [catName, setCatName] = useState('');
+  const [catDesc, setCatDesc] = useState('');
+  const [catIsGents, setCatIsGents] = useState(true);
 
   // --- New Product Form States ---
   const [showProdForm, setShowProdForm] = useState(false);
@@ -125,6 +141,10 @@ export default function AdminPanel({
   const [bannerLinkType, setBannerLinkType] = useState<'gents-collection' | 'gents-category' | 'ladies-collection' | 'ladies-category' | 'none'>('none');
   const [bannerIdToDelete, setBannerIdToDelete] = useState<string | null>(null);
   const [activeConfirmKey, setActiveConfirmKey] = useState<string | null>(null);
+
+  // Interactive Delete Assistant states
+  const [deleteWizardType, setDeleteWizardType] = useState<'gents-col' | 'gents-cat' | 'ladies-col' | 'ladies-cat' | null>(null);
+  const [deleteWizardSelectedId, setDeleteWizardSelectedId] = useState<string>('');
 
   // Authentication submission
   const handleLogin = (e: React.FormEvent) => {
@@ -202,7 +222,8 @@ export default function AdminPanel({
       name: colName,
       description: colDesc || 'Premium clothing collection catalog item.',
       image: colImage || 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=300&h=300',
-      banner: colBanner || 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=1200&h=400'
+      banner: colBanner || 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=1200&h=400',
+      isGents: colIsGents
     };
 
     if (editingColId) {
@@ -216,6 +237,7 @@ export default function AdminPanel({
     setColDesc('');
     setColImage('');
     setColBanner('');
+    setColIsGents(true);
     setEditingColId(null);
     setShowColForm(false);
   };
@@ -226,7 +248,42 @@ export default function AdminPanel({
     setColDesc(col.description);
     setColImage(col.image);
     setColBanner(col.banner);
+    setColIsGents(col.isGents !== false);
     setShowColForm(true);
+  };
+
+  // Save/Update Category
+  const handleCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!catName.trim()) return;
+
+    const payload: Category = {
+      id: editingCatId || `cat-${Date.now()}`,
+      name: catName,
+      description: catDesc || 'Product category description.',
+      isGents: catIsGents
+    };
+
+    if (editingCatId) {
+      onEditCategory(payload);
+    } else {
+      onAddCategory(payload);
+    }
+
+    // Reset
+    setCatName('');
+    setCatDesc('');
+    setCatIsGents(true);
+    setEditingCatId(null);
+    setShowCatForm(false);
+  };
+
+  const startEditCategory = (cat: Category) => {
+    setEditingCatId(cat.id);
+    setCatName(cat.name);
+    setCatDesc(cat.description);
+    setCatIsGents(cat.isGents);
+    setShowCatForm(true);
   };
 
   // Save/Update Product
@@ -593,6 +650,57 @@ export default function AdminPanel({
             {banners.length > 0 && (
               <span className="bg-[#c5a880]/20 text-[#c5a880] font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
                 {banners.length} Banners
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('collections')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'collections' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles size={14} className="text-[#c5a880]" />
+              Manage Collections
+            </span>
+            {collections.length > 0 && (
+              <span className="bg-[#c5a880]/20 text-[#c5a880] font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                {collections.length} Cols
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('categories')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'categories' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Tag size={14} className="text-[#c5a880]" />
+              Manage Categories
+            </span>
+            {categories.length > 0 && (
+              <span className="bg-[#c5a880]/20 text-[#c5a880] font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                {categories.length} Cats
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('subscribers')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'subscribers' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Users size={14} className="text-[#c5a880]" />
+              Subscribers & Logs
+            </span>
+            {subscriptions.length > 0 && (
+              <span className="bg-[#c5a880]/20 text-[#c5a880] font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                {subscriptions.length} Subs
               </span>
             )}
           </button>
@@ -1407,8 +1515,8 @@ export default function AdminPanel({
             </div>
           )}
 
-          {/* TAB 3: PRODUCT CATALOG (Add / Edit / Delete Products) */}
-          {currentTab === 'products' && (
+          {/* TAB 3: PRODUCT CATALOG (Add / Edit / Delete Products - REMOVED BY REQUEST) */}
+          {false && (
             <div className="space-y-6 animate-fade-inOffice">
               <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
                 <div>
@@ -1795,6 +1903,162 @@ export default function AdminPanel({
                 )}
               </div>
 
+              {/* INTERACTIVE GUIDED DELETE ASSISTANT */}
+              <div className="bg-stone-50 border-2 border-dashed border-[#c5a880]/30 rounded-xl p-5 mb-6 space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                  <Trash2 size={18} className="text-red-600 animate-pulse" />
+                  <div>
+                    <h4 className="font-serif font-bold text-sm text-[#1e152a]">Guided Deletion Assistant (Mandi HQ Safeguard)</h4>
+                    <p className="text-[10px] text-gray-400">Select which classification type you would like to securely delete, then choose the item from the dropdown below.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('gents-col');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'gents-col'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">🧔</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Gents Collection</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('gents-cat');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'gents-cat'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">👔</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Gents Category</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('ladies-col');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'ladies-col'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">👩</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Ladies Collection</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('ladies-cat');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'ladies-cat'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">👗</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Ladies Category</span>
+                  </button>
+                </div>
+
+                {deleteWizardType && (
+                  <div className="p-3 bg-white border border-gray-250 rounded-lg space-y-3 animate-fade-in text-xs">
+                    <div>
+                      <label className="block text-[9px] font-bold text-[#c5a880] uppercase tracking-wide mb-1">
+                        Select Lead Item to Delete
+                      </label>
+                      <select
+                        value={deleteWizardSelectedId}
+                        onChange={(e) => setDeleteWizardSelectedId(e.target.value)}
+                        className="w-full bg-white border border-gray-250 px-3 py-2 rounded focus:outline-none focus:border-[#c5a880] cursor-pointer font-medium"
+                      >
+                        <option value="">-- Choose item below --</option>
+                        {deleteWizardType === 'gents-col' &&
+                          collections
+                            .filter((c) => c.isGents !== false)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                🧔 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                        {deleteWizardType === 'ladies-col' &&
+                          collections
+                            .filter((c) => !c.isGents)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                👩 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                        {deleteWizardType === 'gents-cat' &&
+                          categories
+                            .filter((c) => c.isGents)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                👔 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                        {deleteWizardType === 'ladies-cat' &&
+                          categories
+                            .filter((c) => !c.isGents)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                👗 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                      </select>
+                    </div>
+
+                    {deleteWizardSelectedId && (
+                      <div className="pt-2 flex items-center justify-between gap-3 border-t border-gray-100 animate-slide-up bg-red-50/40 p-2.5 rounded border border-red-150">
+                        <div className="text-[10px] text-red-800 font-medium">
+                          ⚠️ <strong>CRITICAL DATA REMOVAL ACTION:</strong> This will delete this specific entry from the database. This action is irreversible.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (activeConfirmKey === 'guided-delete-' + deleteWizardSelectedId) {
+                              if (deleteWizardType === 'gents-col' || deleteWizardType === 'ladies-col') {
+                                onDeleteCollection(deleteWizardSelectedId);
+                              } else {
+                                onDeleteCategory(deleteWizardSelectedId);
+                              }
+                              setDeleteWizardSelectedId('');
+                              setDeleteWizardType(null);
+                              setActiveConfirmKey(null);
+                            } else {
+                              setActiveConfirmKey('guided-delete-' + deleteWizardSelectedId);
+                              setTimeout(() => setActiveConfirmKey(null), 5500);
+                            }
+                          }}
+                          className={`py-1.5 px-4 rounded font-bold uppercase text-[10px] tracking-wider transition-all cursor-pointer shadow-xs shrink-0 ${
+                            activeConfirmKey === 'guided-delete-' + deleteWizardSelectedId
+                              ? 'bg-red-600 text-white animate-pulse'
+                              : 'bg-[#1e152a] text-white hover:bg-red-600'
+                          }`}
+                        >
+                          {activeConfirmKey === 'guided-delete-' + deleteWizardSelectedId ? 'TAP ONCE MORE TO CONFIRM' : '✓ Secure Delete'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Col editing form */}
               {showColForm && (
                 <form onSubmit={handleCollectionSubmit} className="p-5 bg-stone-50 border border-gray-200 rounded-xl text-xs space-y-4 animate-fade-in">
@@ -1816,27 +2080,130 @@ export default function AdminPanel({
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Circle Thumbnail Image URL *</label>
-                      <input
-                        type="url"
-                        required
-                        placeholder="https://images.unsplash.com/photo-..."
-                        value={colImage}
-                        onChange={(e) => setColImage(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
-                      />
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Gender Designation *</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setColIsGents(true)}
+                          className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all border ${
+                            colIsGents 
+                              ? 'bg-[#1e152a] border-[#1e152a] text-[#f1ebd9]' 
+                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          👔 Gents
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setColIsGents(false)}
+                          className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all border ${
+                            !colIsGents 
+                              ? 'bg-[#1e152a] border-[#1e152a] text-[#f1ebd9]' 
+                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          👗 Ladies
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Large Header Banner Image URL *</label>
-                      <input
-                        type="url"
-                        required
-                        placeholder="https://images.unsplash.com/photo-..."
-                        value={colBanner}
-                        onChange={(e) => setColBanner(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
-                      />
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide">Circle Thumbnail Image *</label>
+                      {colImage && (
+                        <div className="flex items-center gap-3 p-2 bg-white border rounded-lg shadow-3xs">
+                          <img src={colImage} alt="" className="w-12 h-12 rounded-full object-cover border-2 border-[#c5a880] bg-[#fff] shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-gray-700 block truncate">Selected Thumbnail</span>
+                            <span className="text-[8px] text-gray-400 font-mono block truncate">
+                              {colImage.startsWith('data:') ? '📂 Encoded Device Image' : colImage}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setColImage('')}
+                            className="text-red-650 hover:text-red-700 font-bold bg-red-50 hover:bg-red-100 text-[9px] uppercase tracking-wider px-2 py-1 rounded cursor-pointer transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label className="flex items-center justify-center gap-1.5 px-3 py-2 border-2 border-dashed border-[#c5a880]/30 hover:border-[#c5a880] rounded-lg cursor-pointer bg-white transition-all text-[11px] font-bold text-gray-750">
+                          <Upload size={14} className="text-[#c5a880] animate-bounce" />
+                          <span>Choose from device gallery</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setColImage(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Or paste direct image URL fallback..."
+                          value={colImage.startsWith('data:') ? '' : colImage}
+                          onChange={(e) => setColImage(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none placeholder-gray-350 text-[11px]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2 space-y-2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide">Large Header Banner Image *</label>
+                      {colBanner && (
+                        <div className="p-2.5 bg-white border rounded-lg shadow-3xs space-y-2">
+                          <div className="h-24 w-full rounded-lg overflow-hidden bg-gray-50 border relative">
+                            <img src={colBanner} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setColBanner('')}
+                              className="absolute top-1.5 right-1.5 bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded cursor-pointer shadow-md transition-all"
+                            >
+                              Remove Banner
+                            </button>
+                          </div>
+                          <span className="text-[9px] text-gray-400 font-mono block truncate">
+                            {colBanner.startsWith('data:') ? '📂 Encoded Large Device Banner' : colBanner}
+                          </span>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <label className="sm:col-span-1 flex items-center justify-center gap-1.5 px-3 py-2 border-2 border-dashed border-[#c5a880]/30 hover:border-[#c5a880] rounded-lg cursor-pointer bg-white transition-all text-[11px] font-bold text-gray-750 text-center">
+                          <Upload size={14} className="text-[#c5a880] animate-bounce" />
+                          <span>Choose Banner Image</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setColBanner(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Or paste direct banner/cover URL fallback..."
+                          value={colBanner.startsWith('data:') ? '' : colBanner}
+                          onChange={(e) => setColBanner(e.target.value)}
+                          className="sm:col-span-2 bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none placeholder-gray-350 text-[11px]"
+                        />
+                      </div>
                     </div>
 
                     <div className="sm:col-span-2">
@@ -1876,7 +2243,12 @@ export default function AdminPanel({
                     <div className="flex gap-2.5 items-center min-w-0">
                       <img src={col.image} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-[#c5a880] flex-none bg-[#fff]" />
                       <div className="truncate">
-                        <strong className="text-gray-800 text-sm font-bold truncate block">{col.name}</strong>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <strong className="text-gray-800 text-sm font-bold truncate block">{col.name}</strong>
+                          <span className="text-[8px] font-extrabold px-1 py-0.5 rounded bg-[#c5a880]/15 text-[#c5a880] shrink-0 uppercase tracking-tight">
+                            {col.isGents !== false ? 'Gents' : 'Ladies'}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-gray-400 block mt-0.5 truncate">{col.description}</span>
                       </div>
                     </div>
@@ -1908,6 +2280,320 @@ export default function AdminPanel({
                       >
                         {activeConfirmKey === 'delete-col-' + col.id ? (
                           <span className="text-[9px] font-extrabold tracking-tight px-0.5 uppercase leading-none">TAP TO CONFIRM</span>
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: EDIT CATEGORIES */}
+          {currentTab === 'categories' && (
+            <div className="space-y-6 animate-fade-in leading-relaxed text-xs">
+              <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#1e152a]">Manage Dynamic Categories</h3>
+                  <p className="text-xs text-gray-400">
+                    Create product categories. Easily assign them to Ladies or Gents classifications, appearing directly in the site menus!
+                  </p>
+                </div>
+                {!showCatForm && (
+                  <button
+                    onClick={() => {
+                      setEditingCatId(null);
+                      setCatName('');
+                      setCatDesc('');
+                      setCatIsGents(true);
+                      setShowCatForm(true);
+                    }}
+                    className="py-2 px-3.5 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-bold uppercase text-xs tracking-wider rounded transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus size={14} /> New Category
+                  </button>
+                )}
+              </div>
+
+              {/* INTERACTIVE GUIDED DELETE ASSISTANT */}
+              <div className="bg-stone-50 border-2 border-dashed border-[#c5a880]/30 rounded-xl p-5 mb-6 space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                  <Trash2 size={18} className="text-red-600 animate-pulse" />
+                  <div>
+                    <h4 className="font-serif font-bold text-sm text-[#1e152a]">Guided Deletion Assistant (Mandi HQ Safeguard)</h4>
+                    <p className="text-[10px] text-gray-400">Select which classification type you would like to securely delete, then choose the item from the dropdown below.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('gents-col');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'gents-col'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">🧔</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Gents Collection</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('gents-cat');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'gents-cat'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">👔</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Gents Category</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('ladies-col');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'ladies-col'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">👩</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Ladies Collection</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteWizardType('ladies-cat');
+                      setDeleteWizardSelectedId('');
+                    }}
+                    className={`p-2.5 rounded border text-center transition-all cursor-pointer ${
+                      deleteWizardType === 'ladies-cat'
+                        ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] font-bold shadow-xs'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-stone-105'
+                    }`}
+                  >
+                    <span className="block text-[14px] mb-1">👗</span>
+                    <span className="block text-[10px] uppercase font-bold tracking-tight text-gray-800">Ladies Category</span>
+                  </button>
+                </div>
+
+                {deleteWizardType && (
+                  <div className="p-3 bg-white border border-gray-250 rounded-lg space-y-3 animate-fade-in text-xs">
+                    <div>
+                      <label className="block text-[9px] font-bold text-[#c5a880] uppercase tracking-wide mb-1">
+                        Select Lead Item to Delete
+                      </label>
+                      <select
+                        value={deleteWizardSelectedId}
+                        onChange={(e) => setDeleteWizardSelectedId(e.target.value)}
+                        className="w-full bg-white border border-gray-250 px-3 py-2 rounded focus:outline-none focus:border-[#c5a880] cursor-pointer font-medium"
+                      >
+                        <option value="">-- Choose item below --</option>
+                        {deleteWizardType === 'gents-col' &&
+                          collections
+                            .filter((c) => c.isGents !== false)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                🧔 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                        {deleteWizardType === 'ladies-col' &&
+                          collections
+                            .filter((c) => !c.isGents)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                👩 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                        {deleteWizardType === 'gents-cat' &&
+                          categories
+                            .filter((c) => c.isGents)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                👔 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                        {deleteWizardType === 'ladies-cat' &&
+                          categories
+                            .filter((c) => !c.isGents)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                👗 {c.name} ({c.description.substring(0, 40)}...)
+                              </option>
+                            ))}
+                      </select>
+                    </div>
+
+                    {deleteWizardSelectedId && (
+                      <div className="pt-2 flex items-center justify-between gap-3 border-t border-gray-100 animate-slide-up bg-red-50/40 p-2.5 rounded border border-red-150">
+                        <div className="text-[10px] text-red-800 font-medium">
+                          ⚠️ <strong>CRITICAL DATA REMOVAL ACTION:</strong> This will delete this specific entry from the database. This action is irreversible.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (activeConfirmKey === 'guided-delete-' + deleteWizardSelectedId) {
+                              if (deleteWizardType === 'gents-col' || deleteWizardType === 'ladies-col') {
+                                onDeleteCollection(deleteWizardSelectedId);
+                              } else {
+                                onDeleteCategory(deleteWizardSelectedId);
+                              }
+                              setDeleteWizardSelectedId('');
+                              setDeleteWizardType(null);
+                              setActiveConfirmKey(null);
+                            } else {
+                              setActiveConfirmKey('guided-delete-' + deleteWizardSelectedId);
+                              setTimeout(() => setActiveConfirmKey(null), 5500);
+                            }
+                          }}
+                          className={`py-1.5 px-4 rounded font-bold uppercase text-[10px] tracking-wider transition-all cursor-pointer shadow-xs shrink-0 ${
+                            activeConfirmKey === 'guided-delete-' + deleteWizardSelectedId
+                              ? 'bg-red-600 text-white animate-pulse'
+                              : 'bg-[#1e152a] text-white hover:bg-red-600'
+                          }`}
+                        >
+                          {activeConfirmKey === 'guided-delete-' + deleteWizardSelectedId ? 'TAP ONCE MORE TO CONFIRM' : '✓ Secure Delete'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Cat editing form */}
+              {showCatForm && (
+                <form onSubmit={handleCategorySubmit} className="p-5 bg-stone-50 border border-gray-200 rounded-xl space-y-4 animate-fade-in text-xs">
+                  <h4 className="font-serif font-bold text-md text-[#1e152a] border-b border-[#e1d9cd]/50 pb-2">
+                    {editingCatId ? 'Configure Category Specs' : 'Register New Category'}
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Category Name *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Silk Dupatta"
+                        value={catName}
+                        onChange={(e) => setCatName(e.target.value)}
+                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:border-[#c5a880]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Gender Belonging *</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCatIsGents(true)}
+                          className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all border ${
+                            catIsGents 
+                              ? 'bg-[#1e152a] border-[#1e152a] text-[#f1ebd9]' 
+                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          👔 Gents Category
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCatIsGents(false)}
+                          className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all border ${
+                            !catIsGents 
+                              ? 'bg-[#1e152a] border-[#1e152a] text-[#f1ebd9]' 
+                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          👗 Ladies Category
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Small Tagline / Description *</label>
+                      <textarea
+                        rows={2}
+                        required
+                        placeholder="e.g. Elegant printed chiffon or silk dupatta sets..."
+                        value={catDesc}
+                        onChange={(e) => setCatDesc(e.target.value)}
+                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:border-[#c5a880]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCatForm(false)}
+                      className="flex-1 py-2 border rounded font-semibold text-gray-700 uppercase hover:bg-gray-50 cursor-pointer text-xs"
+                    >
+                      Close Form
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 bg-[#1e152a] text-white hover:bg-[#c5a880] hover:text-black font-extrabold rounded uppercase tracking-wider cursor-pointer text-xs"
+                    >
+                      {editingCatId ? 'Save Specs' : 'Publish Category'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Categories table list */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {categories.map(cat => (
+                  <div key={cat.id} className="border border-gray-100 rounded-xl overflow-hidden p-3 bg-stone-50 flex items-center justify-between hover:shadow-xs transition-shadow">
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        <strong className="text-gray-800 text-xs font-serif font-bold truncate block">{cat.name}</strong>
+                        <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100/30 text-amber-800 uppercase tracking-tight font-sans">
+                          {cat.isGents ? '👔 Gents' : '👗 Ladies'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 truncate mt-0.5">{cat.description}</p>
+                    </div>
+                    
+                    <div className="flex gap-0.5 shrink-0 pl-1 border-l border-gray-200/40">
+                      <button
+                        onClick={() => startEditCategory(cat)}
+                        className="p-1 text-gray-400 hover:text-[#c5a880] rounded cursor-pointer"
+                        title="Edit category details"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const key = 'delete-cat-' + cat.id;
+                          if (activeConfirmKey === key) {
+                            onDeleteCategory(cat.id);
+                            setActiveConfirmKey(null);
+                          } else {
+                            setActiveConfirmKey(key);
+                            setTimeout(() => setActiveConfirmKey(null), 4000);
+                          }
+                        }}
+                        className={`p-1 rounded transition-all cursor-pointer ${
+                          activeConfirmKey === 'delete-cat-' + cat.id
+                            ? 'text-red-500 bg-red-50 hover:bg-red-100 animate-pulse'
+                            : 'text-gray-400 hover:text-red-500'
+                        }`}
+                        title={activeConfirmKey === 'delete-cat-' + cat.id ? "Click again to confirm" : "Delete category"}
+                      >
+                        {activeConfirmKey === 'delete-cat-' + cat.id ? (
+                          <span className="text-[9px] font-extrabold tracking-tight px-0.5 uppercase leading-none">CONFIRM</span>
                         ) : (
                           <Trash2 size={13} />
                         )}

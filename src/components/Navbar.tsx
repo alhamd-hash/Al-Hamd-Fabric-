@@ -11,10 +11,8 @@ interface NavbarProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   collections: { id: string; name: string; isGents?: boolean }[];
+  categories?: { id: string; name: string; isGents: boolean; description: string }[];
 }
-
-const LADIES_CATEGORIES = ['2 Piece', '3 Piece', 'Lawn Collection', 'Pret Wear', 'Embroidered'];
-const GENTS_CATEGORIES = ['Shalwar Kameez', 'Wash & Wear', 'Cotton Suits', 'Casual Wear', 'Premium Suits'];
 
 export default function Navbar({
   cart,
@@ -23,8 +21,12 @@ export default function Navbar({
   onOpenTracker,
   searchQuery,
   setSearchQuery,
-  collections
+  collections,
+  categories = []
 }: NavbarProps) {
+  const dynamicLadiesCategories = categories ? categories.filter(c => !c.isGents).map(c => c.name) : [];
+  const dynamicGentsCategories = categories ? categories.filter(c => c.isGents).map(c => c.name) : [];
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Expanded menu states to support the category-explorer interactions
@@ -32,6 +34,8 @@ export default function Navbar({
   const [mobileGentsOpen, setMobileGentsOpen] = useState(false);
   const [mobileLadiesOpen, setMobileLadiesOpen] = useState(false);
   const [mobileCollectionsOpen, setMobileCollectionsOpen] = useState(false);
+  const [mobileGentsColsOpen, setMobileGentsColsOpen] = useState(false);
+  const [mobileLadiesColsOpen, setMobileLadiesColsOpen] = useState(false);
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const cartTotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
@@ -174,15 +178,19 @@ export default function Navbar({
                       👔 Gents Categories
                     </h5>
                     <div className="flex flex-col gap-1.5">
-                      {GENTS_CATEGORIES.map((cat) => (
-                        <button
-                          key={cat}
-                          onClick={() => onNavigate('category', cat)}
-                          className="w-full text-left py-1 text-xs text-gray-500 hover:text-[#c5a880] transition-all font-medium cursor-pointer"
-                        >
-                          • {cat}
-                        </button>
-                      ))}
+                      {dynamicGentsCategories.length === 0 ? (
+                        <span className="text-[11px] italic text-gray-400 font-medium">No category available (Nill)</span>
+                      ) : (
+                        dynamicGentsCategories.map((cat) => (
+                          <button
+                            key={cat}
+                            onClick={() => onNavigate('category', cat)}
+                            className="w-full text-left py-1 text-xs text-gray-500 hover:text-[#c5a880] transition-all font-medium cursor-pointer"
+                          >
+                            • {cat}
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -192,15 +200,19 @@ export default function Navbar({
                       👗 Ladies Categories
                     </h5>
                     <div className="flex flex-col gap-1.5">
-                      {LADIES_CATEGORIES.map((cat) => (
-                        <button
-                          key={cat}
-                          onClick={() => onNavigate('category', cat)}
-                          className="w-full text-left py-1 text-xs text-gray-500 hover:text-[#c5a880] transition-all font-medium cursor-pointer"
-                        >
-                          • {cat}
-                        </button>
-                      ))}
+                      {dynamicLadiesCategories.length === 0 ? (
+                        <span className="text-[11px] italic text-gray-400 font-medium">No category available (Nill)</span>
+                      ) : (
+                        dynamicLadiesCategories.map((cat) => (
+                          <button
+                            key={cat}
+                            onClick={() => onNavigate('category', cat)}
+                            className="w-full text-left py-1 text-xs text-gray-500 hover:text-[#c5a880] transition-all font-medium cursor-pointer"
+                          >
+                            • {cat}
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -217,26 +229,34 @@ export default function Navbar({
                   </svg>
                 </button>
                 <div className="absolute left-0 mt-0 w-64 bg-white rounded-md shadow-lg py-2 border border-gray-100 opacity-0 group-hover:opacity-100 transition-all duration-300 scale-95 origin-top-left pointer-events-none group-hover:pointer-events-auto group-hover:scale-100 z-50">
-                  <div className="px-4 py-1.5 text-[10px] text-gray-400 border-b border-gray-50 uppercase tracking-wider font-bold">Gents Catalogs</div>
-                  {collections.filter(c => c.isGents).map((col) => (
-                    <button
-                      key={col.id}
-                      onClick={() => onNavigate('collection', col.id)}
-                      className="w-full text-left px-5 py-2 text-xs text-[#1e152a] hover:bg-[#faf9f6] hover:text-[#c5a880] transition-all font-semibold"
-                    >
-                      {col.name}
-                    </button>
-                  ))}
-                  <div className="px-4 py-1.5 mt-1 text-[10px] text-gray-400 border-b border-gray-50 uppercase tracking-wider font-bold">Ladies Catalogs</div>
-                  {collections.filter(c => !c.isGents).map((col) => (
-                    <button
-                      key={col.id}
-                      onClick={() => onNavigate('collection', col.id)}
-                      className="w-full text-left px-5 py-2 text-xs text-[#1e152a] hover:bg-[#faf9f6] hover:text-[#c5a880] transition-all font-semibold"
-                    >
-                      {col.name}
-                    </button>
-                  ))}
+                  <div className="px-4 py-1.5 text-[10px] text-gray-400 border-b border-gray-50 uppercase tracking-wider font-bold">👔 Gents Collections</div>
+                  {collections.filter(c => c.isGents).length === 0 ? (
+                    <div className="px-5 py-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
+                  ) : (
+                    collections.filter(c => c.isGents).map((col) => (
+                      <button
+                        key={col.id}
+                        onClick={() => onNavigate('collection', col.id)}
+                        className="w-full text-left px-5 py-2 text-xs text-[#1e152a] hover:bg-[#faf9f6]/80 hover:text-[#c5a880] transition-all font-semibold block cursor-pointer"
+                      >
+                        • {col.name}
+                      </button>
+                    ))
+                  )}
+                  <div className="px-4 py-1.5 mt-1 text-[10px] text-gray-400 border-b border-gray-50 uppercase tracking-wider font-bold">👗 Ladies Collections</div>
+                  {collections.filter(c => !c.isGents).length === 0 ? (
+                    <div className="px-5 py-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
+                  ) : (
+                    collections.filter(c => !c.isGents).map((col) => (
+                      <button
+                        key={col.id}
+                        onClick={() => onNavigate('collection', col.id)}
+                        className="w-full text-left px-5 py-2 text-xs text-[#1e152a] hover:bg-[#faf9f6]/80 hover:text-[#c5a880] transition-all font-semibold block cursor-pointer"
+                      >
+                        • {col.name}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -313,15 +333,19 @@ export default function Navbar({
                     </button>
                     {mobileGentsOpen && (
                       <div className="pl-3 mt-1 space-y-1 bg-stone-50 rounded p-1.5 animate-fade-in">
-                        {GENTS_CATEGORIES.map((cat) => (
-                          <button
-                            key={cat}
-                            onClick={() => { onNavigate('category', cat); setMobileMenuOpen(false); }}
-                            className="w-full text-left py-2 text-xs text-gray-600 hover:text-[#c5a880] block font-medium"
-                          >
-                            • {cat}
-                          </button>
-                        ))}
+                        {dynamicGentsCategories.length === 0 ? (
+                          <div className="w-full text-left py-2 px-2 text-xs text-gray-400 italic font-medium">No category available (Nill)</div>
+                        ) : (
+                          dynamicGentsCategories.map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => { onNavigate('category', cat); setMobileMenuOpen(false); }}
+                              className="w-full text-left py-2 text-xs text-gray-600 hover:text-[#c5a880] block font-medium"
+                            >
+                              • {cat}
+                            </button>
+                          ))
+                        )}
                       </div>
                     )}
                   </div>
@@ -337,15 +361,19 @@ export default function Navbar({
                     </button>
                     {mobileLadiesOpen && (
                       <div className="pl-3 mt-1 space-y-1 bg-stone-50 rounded p-1.5 animate-fade-in">
-                        {LADIES_CATEGORIES.map((cat) => (
-                          <button
-                            key={cat}
-                            onClick={() => { onNavigate('category', cat); setMobileMenuOpen(false); }}
-                            className="w-full text-left py-2 text-xs text-gray-600 hover:text-[#c5a880] block font-medium"
-                          >
-                            • {cat}
-                          </button>
-                        ))}
+                        {dynamicLadiesCategories.length === 0 ? (
+                          <div className="w-full text-left py-2 px-2 text-xs text-gray-400 italic font-medium">No category available (Nill)</div>
+                        ) : (
+                          dynamicLadiesCategories.map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => { onNavigate('category', cat); setMobileMenuOpen(false); }}
+                              className="w-full text-left py-2 text-xs text-gray-600 hover:text-[#c5a880] block font-medium"
+                            >
+                              • {cat}
+                            </button>
+                          ))
+                        )}
                       </div>
                     )}
                   </div>
@@ -364,16 +392,62 @@ export default function Navbar({
               </button>
 
               {mobileCollectionsOpen && (
-                <div className="pl-4 mt-1 space-y-1 border-l-2 border-[#c5a880]/30 ml-2 py-1 animate-fade-in">
-                  {collections.map((col) => (
+                <div className="pl-4 mt-1 space-y-3 border-l-2 border-[#c5a880]/30 ml-2 py-1 animate-fade-in">
+                  {/* Gents Collections Accordion */}
+                  <div>
                     <button
-                      key={col.id}
-                      onClick={() => { onNavigate('collection', col.id); setMobileMenuOpen(false); }}
-                      className="w-full text-left py-2 text-xs text-gray-600 hover:text-[#c5a880] block font-medium"
+                      onClick={() => setMobileGentsColsOpen(!mobileGentsColsOpen)}
+                      className="w-full flex items-center justify-between py-2 text-xs font-bold text-gray-500 hover:text-[#c5a880] uppercase tracking-wider cursor-pointer"
                     >
-                      • {col.name}
+                      <span>👔 Gents Collections</span>
+                      <span>{mobileGentsColsOpen ? '−' : '+'}</span>
                     </button>
-                  ))}
+                    {mobileGentsColsOpen && (
+                      <div className="pl-3 mt-1 space-y-1 bg-stone-50 rounded p-1.5 animate-fade-in">
+                        {collections.filter(c => c.isGents).length === 0 ? (
+                          <div className="w-full text-left py-2 px-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
+                        ) : (
+                          collections.filter(c => c.isGents).map((col) => (
+                            <button
+                              key={col.id}
+                              onClick={() => { onNavigate('collection', col.id); setMobileMenuOpen(false); }}
+                              className="w-full text-left py-2 text-xs text-gray-600 hover:text-[#c5a880] block font-medium"
+                            >
+                              • {col.name}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Ladies Collections Accordion */}
+                  <div>
+                    <button
+                      onClick={() => setMobileLadiesColsOpen(!mobileLadiesColsOpen)}
+                      className="w-full flex items-center justify-between py-2 text-xs font-bold text-gray-500 hover:text-[#c5a880] uppercase tracking-wider cursor-pointer"
+                    >
+                      <span>👗 Ladies Collections</span>
+                      <span>{mobileLadiesColsOpen ? '−' : '+'}</span>
+                    </button>
+                    {mobileLadiesColsOpen && (
+                      <div className="pl-3 mt-1 space-y-1 bg-stone-50 rounded p-1.5 animate-fade-in">
+                        {collections.filter(c => !c.isGents).length === 0 ? (
+                          <div className="w-full text-left py-2 px-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
+                        ) : (
+                          collections.filter(c => !c.isGents).map((col) => (
+                            <button
+                              key={col.id}
+                              onClick={() => { onNavigate('collection', col.id); setMobileMenuOpen(false); }}
+                              className="w-full text-left py-2 text-xs text-gray-600 hover:text-[#c5a880] block font-medium"
+                            >
+                              • {col.name}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

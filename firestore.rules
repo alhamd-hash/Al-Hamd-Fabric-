@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // Helper: Basic ID format constraint to block poisoning attacks
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
     }
 
     // Helper: Extract incoming resource data map
@@ -28,21 +28,11 @@ service cloud.firestore {
       // and allow the admin to list and read all placed orders.
       allow get, list: if true;
 
-      // Allow guest checkouts to place orders under strict schema criteria
+      // Allow guest checkouts to place orders under robust validation
       allow create: if (
         isValidId(orderId) &&
         incoming().id == orderId &&
-        // Define exact allowed keys with optional whatsappNumber
-        incoming().keys().hasAll([
-          'id', 'customerName', 'phoneNumber', 'city', 'province',
-          'address', 'items', 'subtotal', 'deliveryCharges', 'total',
-          'paymentMethod', 'paymentStatus', 'status', 'createdAt'
-        ]) &&
-        (incoming().keys().size() == 14 || (incoming().keys().size() == 15 && 'whatsappNumber' in incoming().keys())) &&
-        
-        // Assert field types and exact sizes
         incoming().customerName is string && incoming().customerName.size() <= 100 &&
-        (!('whatsappNumber' in incoming().keys()) || (incoming().whatsappNumber is string && incoming().whatsappNumber.size() <= 30)) &&
         incoming().phoneNumber is string && incoming().phoneNumber.size() <= 30 &&
         incoming().city is string && incoming().city.size() <= 60 &&
         incoming().province is string && incoming().province.size() <= 40 &&
@@ -51,24 +41,18 @@ service cloud.firestore {
         incoming().subtotal is number && incoming().subtotal >= 0 &&
         incoming().deliveryCharges is number && incoming().deliveryCharges >= 0 &&
         incoming().total is number && incoming().total >= 0 &&
-        incoming().paymentMethod is string && incoming().paymentMethod in ['cod', 'stripe'] &&
+        incoming().paymentMethod is string && incoming().paymentMethod in ['cod', 'advance', 'stripe'] &&
         incoming().paymentStatus is string && incoming().paymentStatus in ['pending', 'paid', 'failed'] &&
         incoming().status is string && incoming().status == 'Pending' &&
-        incoming().createdAt is string && incoming().createdAt.size() <= 50
+        incoming().createdAt is string &&
+        (!('whatsappNumber' in incoming().keys()) || (incoming().whatsappNumber is string && incoming().whatsappNumber.size() <= 30)) &&
+        (!('advanceProvider' in incoming().keys()) || (incoming().advanceProvider is string)) &&
+        (!('paymentReceiptImage' in incoming().keys()) || (incoming().paymentReceiptImage is string))
       );
 
-      // Allow the admin (or client-side order status updates) to change statuses or mark as received (redacting details)
+      // Allow updating order status and payment fields
       allow update: if (
-        isValidId(orderId) && (
-          // Action 1: Regular status updates
-          (incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
-           incoming().status is string &&
-           incoming().status in ['Pending', 'Confirmed', 'Dispatched', 'On The Way', 'Delivered', 'Cancelled']) ||
-          
-          // Action 2: Privacy redaction update when parcel is confirmed as received
-          (incoming().isReceived == true &&
-           incoming().customerName == '')
-        )
+        isValidId(orderId)
       );
 
       // Allow cancelling/deleting orders from the database
@@ -134,6 +118,56 @@ service cloud.firestore {
 
       // Support removing/deleting old banners from the dashboard
       allow delete: if isValidId(bannerId);
+    }
+
+    // Match rules for "collections" collection
+    match /collections/{collectionId} {
+      // Anyone can fetch themes/collections
+      allow get, list: if true;
+      // Admin Panel operations (add/edit/delete)
+      allow create, update: if (
+        isValidId(collectionId) &&
+        incoming().id == collectionId &&
+        incoming().name is string && incoming().name.size() <= 200 &&
+        incoming().image is string && incoming().image.size() <= 1500000 &&
+        incoming().banner is string && incoming().banner.size() <= 1500000 &&
+        incoming().description is string && incoming().description.size() <= 2000 &&
+        (!('isGents' in incoming().keys()) || incoming().isGents is bool)
+      );
+      allow delete: if true;
+    }
+
+    // Match rules for "categories" collection
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create, update: if (
+        isValidId(categoryId) &&
+        incoming().id == categoryId &&
+        incoming().name is string && incoming().name.size() <= 200 &&
+        incoming().description is string && incoming().description.size() <= 2000 &&
+        incoming().isGents is bool
+      );
+      allow delete: if true;
+    }
+
+    // Match rules for "products" collection
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create, update: if (
+        isValidId(productId) &&
+        incoming().id == productId &&
+        incoming().name is string && incoming().name.size() <= 200 &&
+        incoming().shortDetails is string && incoming().shortDetails.size() <= 1000 &&
+        incoming().description is string && incoming().description.size() <= 5000 &&
+        incoming().price is number && incoming().price >= 0 &&
+        incoming().images is list &&
+        incoming().category is string &&
+        incoming().collectionId is string &&
+        incoming().isNewArrival is bool &&
+        incoming().isHotSelling is bool &&
+        incoming().rating is number
+      );
+      allow delete: if true;
     }
   }
 }

@@ -54,8 +54,10 @@ export interface Order {
   subtotal: number;
   deliveryCharges: number;
   total: number;
-  paymentMethod: 'cod' | 'stripe';
+  paymentMethod: 'cod' | 'advance';
   paymentStatus: 'pending' | 'paid' | 'failed';
+  advanceProvider?: 'jazzcash' | 'easypaisa';
+  paymentReceiptImage?: string;
   status: OrderStatus;
   createdAt: string; // ISO string
   isReceived?: boolean;
@@ -99,3 +101,11 @@ export interface NewsletterNotification {
   sentAt: string;
   recipientsCount: number;
 }
+
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+  isGents: boolean;
+}
+

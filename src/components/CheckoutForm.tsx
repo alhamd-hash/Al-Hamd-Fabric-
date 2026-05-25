@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CreditCard, ShoppingBag, Truck, Check, HelpCircle, ShieldCheck, Lock, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { CreditCard, ShoppingBag, Truck, Check, HelpCircle, ShieldCheck, Lock, ArrowRight, AlertCircle, RefreshCw, Upload } from 'lucide-react';
 import { Product, Order } from '../types';
 import { formatPKR, calculateDeliveryCharges } from '../utils';
 
@@ -25,13 +25,12 @@ export default function CheckoutForm({
   const [address, setAddress] = useState('');
 
   // Payment method
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'stripe'>('cod');
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'advance'>('cod');
 
-  // Stripe Card Input Details
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  const [stripeError, setStripeError] = useState('');
+  // Advance Payment Details (JazzCash/EasyPaisa)
+  const [advanceProvider, setAdvanceProvider] = useState<'jazzcash' | 'easypaisa'>('jazzcash');
+  const [paymentReceiptImage, setPaymentReceiptImage] = useState<string>('');
+  const [receiptError, setReceiptError] = useState('');
 
   // Order state handling
   const [isProcessing, setIsProcessing] = useState(false);
@@ -43,38 +42,25 @@ export default function CheckoutForm({
   const deliveryCharges = calculateDeliveryCharges(subtotal);
   const grandTotal = subtotal + deliveryCharges;
 
-  // Masking functions for Stripe card input dummy values
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '');
-    val = val.substring(0, 16);
-    const matches = val.match(/\d{4,16}/g);
-    const match = (matches && matches[0]) || '';
-    const parts = [];
-
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
+  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setReceiptError('Please upload a valid image file (PNG, JPG, JPEG).');
+      return;
     }
-
-    if (parts.length > 0) {
-      setCardNumber(parts.join(' '));
-    } else {
-      setCardNumber(val);
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      setReceiptError('Image is too large. Please upload an image under 2MB.');
+      return;
     }
-  };
-
-  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '');
-    if (val.length > 4) val = val.substring(0, 4);
-    if (val.length >= 2) {
-      setCardExpiry(`${val.substring(0, 2)}/${val.substring(2)}`);
-    } else {
-      setCardExpiry(val);
-    }
-  };
-
-  const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, '').substring(0, 3);
-    setCardCvv(val);
+    setReceiptError('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPaymentReceiptImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
@@ -83,42 +69,27 @@ export default function CheckoutForm({
       return;
     }
 
-    if (paymentMethod === 'stripe') {
-      const parsedNum = cardNumber.replace(/\s/g, '');
-      if (parsedNum.length < 16) {
-        setStripeError('Please enter a valid 16-digit card number.');
-        return;
-      }
-      if (cardExpiry.length < 5) {
-        setStripeError('Please enter a valid MM/YY expiration date.');
-        return;
-      }
-      if (cardCvv.length < 3) {
-        setStripeError('Please enter your 3-digit CVV number.');
-        return;
-      }
-      setStripeError('');
+    if (paymentMethod === 'advance' && !paymentReceiptImage) {
+      setReceiptError('Please upload your JazzCash or EasyPaisa payment receipt screenshot before submitting.');
+      return;
     }
 
-    // Begin Stripe/Checkout Simulation process
+    // Begin Checkout Simulation process
     setIsProcessing(true);
     
     try {
-      if (paymentMethod === 'stripe') {
-        setProcessingStep('Initiating secure Stripe Gateway handshakes...');
-        await new Promise((r) => setTimeout(r, 1200));
-
-        setProcessingStep('Validating Credit details with Stripe standard ledger...');
+      if (paymentMethod === 'advance') {
+        setProcessingStep('Registering your JazzCash / EasyPaisa advance ledger...');
         await new Promise((r) => setTimeout(r, 1000));
 
-        setProcessingStep(`Authorizing transaction for ${formatPKR(grandTotal)}...`);
-        await new Promise((r) => setTimeout(r, 1000));
-
-        setProcessingStep('Card authorized! Saving checkout ledger values...');
+        setProcessingStep('Validating uploaded transaction receipt file...');
         await new Promise((r) => setTimeout(r, 800));
+
+        setProcessingStep('Saving order inquiry securely on Cloud-Linked Ledger...');
+        await new Promise((r) => setTimeout(r, 700));
       } else {
         setProcessingStep('Confirming your Order request ledger...');
-        await new Promise((r) => setTimeout(r, 1200));
+        await new Promise((r) => setTimeout(r, 1000));
       }
 
       // Compile payload
@@ -130,7 +101,7 @@ export default function CheckoutForm({
         province,
         address,
         paymentMethod,
-        paymentStatus: paymentMethod === 'stripe' ? ('paid' as const) : ('pending' as const),
+        paymentStatus: 'pending' as const, // Always 'pending' initially for safety, verifying later
         items: cart.map(item => ({
           productId: item.product.id,
           productName: item.product.name,
@@ -140,7 +111,11 @@ export default function CheckoutForm({
         })),
         subtotal,
         deliveryCharges,
-        total: grandTotal
+        total: grandTotal,
+        ...(paymentMethod === 'advance' ? {
+          advanceProvider,
+          paymentReceiptImage
+        } : {})
       };
 
       setPurchasedSnapshot(cart.map(item => ({
@@ -153,7 +128,7 @@ export default function CheckoutForm({
       setOrderIdCreated(newId);
     } catch (err) {
       console.error(err);
-      setStripeError('Something went wrong during checkout. Please try again.');
+      setReceiptError('Something went wrong during checkout. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -209,9 +184,11 @@ export default function CheckoutForm({
                 <strong className="text-gray-900">{city}, {province}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-[10px] uppercase font-bold text-gray-400">Payment Status:</span>
-                <strong className="text-emerald-700 uppercase text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">
-                  {paymentMethod === 'stripe' ? 'STRIPE (PAID)' : 'C.O.D (AWAITING)'}
+                <span className="text-[10px] uppercase font-bold text-gray-400">Payment Method:</span>
+                <strong className={`uppercase text-[9px] px-1.5 py-0.5 rounded border font-bold ${
+                  paymentMethod === 'advance' ? 'bg-indigo-50 text-indigo-700 border-indigo-150' : 'bg-amber-50 text-amber-800 border-amber-100'
+                }`}>
+                  {paymentMethod === 'advance' ? `ADVANCE (${advanceProvider.toUpperCase()}) - PENDING` : 'C.O.D (AWAITING)'}
                 </strong>
               </div>
             </div>
@@ -248,7 +225,18 @@ export default function CheckoutForm({
           </div>
         </div>
 
-        <div className="pt-4 space-y-4 max-w-sm mx-auto font-sans">
+        <div className="pt-4 space-y-3.5 max-w-sm mx-auto font-sans">
+          {paymentMethod === 'advance' && (
+            <div className="p-3 bg-indigo-50 border border-indigo-150 rounded-xl text-center">
+              <p className="text-[11px] text-indigo-700 font-bold leading-relaxed">
+                ⚖️ ADVANCE PAYMENT RECEIVED (PENDING VERIFICATION)
+              </p>
+              <p className="text-[10px] text-gray-600 mt-1 leading-relaxed font-light">
+                Our accounting team will verify your payment receipt. The order status will turn **Confirmed** once Zaffar Iqbal verifies the ledger.
+              </p>
+            </div>
+          )}
+
           <div className="p-3 bg-amber-50/60 border border-amber-200/50 rounded-xl text-center">
             <p className="text-[11px] text-[#c5a880] font-bold leading-relaxed">
               📸 PLEASE TAKE A SCREENSHOT OF THIS INVOICE RECEIPT!
@@ -390,7 +378,7 @@ export default function CheckoutForm({
               <h2 className="font-serif font-bold text-md text-[#1e152a] tracking-wide uppercase">Select Secured Payment Method</h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 border-none">
               {/* COD */}
               <label className={`block px-5 py-4 border rounded-xl cursor-pointer transition-all ${
                 paymentMethod === 'cod' ? 'border-[#1e152a] bg-[#1e152a]/5 shadow-2xs' : 'border-gray-200 hover:border-[#c5a880]'
@@ -405,7 +393,7 @@ export default function CheckoutForm({
                       className="text-[#100c18] focus:ring-[#c5a880] w-4 h-4 cursor-pointer"
                     />
                     <div>
-                      <span className="font-bold text-sm block text-gray-800">Cash On Delivery</span>
+                      <span className="font-bold text-sm block text-gray-800">Cash On Delivery (COD)</span>
                       <span className="text-[10px] text-gray-400">Pay when suit reaches Lahore/Pakistan</span>
                     </div>
                   </div>
@@ -413,113 +401,141 @@ export default function CheckoutForm({
                 </div>
               </label>
 
-              {/* Stripe Credit Card */}
+              {/* Advance Payment (JazzCash/EasyPaisa) */}
               <label className={`block px-5 py-4 border rounded-xl cursor-pointer transition-all ${
-                paymentMethod === 'stripe' ? 'border-[#1e152a] bg-[#1e152a]/5 shadow-2xs' : 'border-gray-200 hover:border-[#c5a880]'
+                paymentMethod === 'advance' ? 'border-[#1e152a] bg-[#1e152a]/5 shadow-2xs' : 'border-gray-200 hover:border-[#c5a880]'
               }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <input
                       type="radio"
                       name="payment_opt"
-                      checked={paymentMethod === 'stripe'}
-                      onChange={() => setPaymentMethod('stripe')}
+                      checked={paymentMethod === 'advance'}
+                      onChange={() => setPaymentMethod('advance')}
                       className="text-[#100c18] focus:ring-[#c5a880] w-4 h-4 cursor-pointer"
                     />
                     <div>
-                      <span className="font-bold text-sm block text-gray-800">Stripe Secure Card</span>
-                      <span className="text-[10px] text-gray-400">Simulate seamless debit transaction</span>
+                      <span className="font-bold text-sm block text-gray-800">JazzCash / EasyPaisa Advance</span>
+                      <span className="text-[10px] text-gray-400">Advance payment with instant transfer</span>
                     </div>
                   </div>
-                  <CreditCard size={20} className={paymentMethod === 'stripe' ? 'text-[#c5a880]' : 'text-gray-400'} />
+                  <CreditCard size={20} className={paymentMethod === 'advance' ? 'text-[#c5a880]' : 'text-gray-400'} />
                 </div>
               </label>
             </div>
 
-            {/* Seamless Stripe Card Simulator Form UI */}
-            {paymentMethod === 'stripe' && (
-              <div className="p-5 bg-stone-50 rounded-xl border border-gray-200/80 space-y-4 animate-fade-in">
+            {/* Advance Payment Instructions with Upload field */}
+            {paymentMethod === 'advance' && (
+              <div className="p-5 bg-stone-50 rounded-xl border border-gray-200/80 space-y-4 animate-fade-in animate-duration-300">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-200/60">
-                  <span className="text-xs text-[#222] font-mono leading-none flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-[#6757df] rounded-full animate-ping" />
-                    🔒 STRIPIFIED PROXIED SHEATH
+                  <span className="text-xs text-[#222] font-mono leading-none flex items-center gap-1 font-bold">
+                    📲 CHOOSE YOUR ADVANCE WALLET
                   </span>
-                  <div className="flex gap-2">
-                    {/* Tiny Stripe styled logo */}
-                    <span className="bg-[#6757df] text-white font-bold px-2 py-0.5 rounded text-[9px] font-sans tracking-wide">
-                      stripe
-                    </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setAdvanceProvider('jazzcash')}
+                    className={`py-2.5 px-4 rounded border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      advanceProvider === 'jazzcash'
+                        ? 'bg-[#c5a880] border-[#c5a880] text-black shadow-xs'
+                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    🎨 JazzCash Wallet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdvanceProvider('easypaisa')}
+                    className={`py-2.5 px-4 rounded border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      advanceProvider === 'easypaisa'
+                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    ☘️ EasyPaisa Wallet
+                  </button>
+                </div>
+
+                <div className="p-4 bg-white border border-gray-200 rounded-xl space-y-3 shadow-3xs">
+                  <div className="text-xs text-gray-850 font-sans space-y-2 leading-relaxed">
+                    <p className="text-[11px] uppercase tracking-wider font-extrabold text-[#c5a880]">
+                      Official Account Details
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 bg-[#faf9f6] p-3 rounded border border-gray-150 text-xs">
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase block">Bank / Mobile Wallet:</span>
+                        <strong className="text-gray-900 text-xs font-extrabold">
+                          {advanceProvider === 'jazzcash' ? 'JazzCash Mobile Wallet' : 'EasyPaisa Mobile Wallet'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase block">Account Number (Account Holder ID):</span>
+                        <strong className="text-gray-900 text-sm font-mono tracking-wide">03053131133</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase block">Account Title / Holder:</span>
+                        <strong className="text-[#1e152a] text-xs font-extrabold">Zaffar Iqbal</strong>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-red-500 font-bold mt-1.5">
+                      ⚠️ instruction: Please transfer exactly <strong className="font-mono text-gray-850 bg-stone-100 px-1">{formatPKR(grandTotal)}</strong> to the account above first, then take a screenshot of the receipt and upload it below.
+                    </p>
                   </div>
                 </div>
 
-                <div className="p-3 bg-[#e2f0d9]/60 border border-[#b2cf9d] rounded text-emerald-800 text-[10px] font-mono leading-relaxed space-y-1">
-                  <strong>💡 Stripe Sandbox Helper:</strong>
-                  <p>You can simulate a verified secure transaction using the Stripe demo card coordinates below:</p>
-                  <p>Card: <strong className="bg-[#faf9f6] px-1 font-sans rounded">4242 4242 4242 4242</strong> | Expiry: <strong className="bg-[#faf9f6] px-1 font-sans rounded">12/28</strong> | CVV: <strong className="bg-[#faf9f6] px-1 font-sans rounded">421</strong></p>
-                </div>
-
-                {stripeError && (
-                  <div className="p-3 bg-red-50 border border-red-100 text-red-700 text-xs rounded font-medium flex items-center gap-2">
+                {receiptError && (
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-750 text-xs rounded font-medium flex items-center gap-2">
                     <AlertCircle size={14} className="shrink-0" />
-                    <span>{stripeError}</span>
+                    <span>{receiptError}</span>
                   </div>
                 )}
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Secure Credit Card Holder</label>
-                    <input
-                      type="text"
-                      required={paymentMethod === 'stripe'}
-                      placeholder="e.g. Zafar Iqbal"
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-xs focus:ring-1 focus:ring-[#6757df] outline-none"
-                    />
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-gray-700 uppercase">
+                    Upload Payment Receipt (Screenshot or Transaction Slip) <span className="text-red-500">*</span>
+                  </label>
+                  
+                  <div className="flex items-center justify-center w-full">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer bg-white hover:bg-gray-50/50 transition-colors">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
+                        <Upload size={22} className="text-[#c5a880] mb-1" />
+                        <p className="text-[11px] text-gray-600 font-bold mb-0.5">Click to upload or Drag & Drop screenshot</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-mono font-light">PNG, JPG, JPEG (Max 2MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleReceiptUpload}
+                      />
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Card Number</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required={paymentMethod === 'stripe'}
-                        placeholder="4242 4242 4242 4242"
-                        value={cardNumber}
-                        onChange={handleCardNumberChange}
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded text-xs focus:ring-1 focus:ring-[#6757df] outline-none font-mono"
-                      />
-                      <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  {paymentReceiptImage && (
+                    <div className="mt-2.5 p-2 bg-white border border-gray-200 rounded flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gray-50 border border-gray-150 rounded overflow-hidden flex-none">
+                        <img src={paymentReceiptImage} alt="Payment Receipt" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs text-emerald-600 font-bold block">✓ Receipt Image Attached</span>
+                        <span className="text-[9px] text-gray-400 block truncate">Ready for Lahore administrator checkout review.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentReceiptImage('')}
+                        className="text-red-500 text-xs font-bold hover:underline cursor-pointer px-2"
+                      >
+                        Remove
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Expiration MM/YY</label>
-                      <input
-                        type="text"
-                        required={paymentMethod === 'stripe'}
-                        placeholder="MM/YY"
-                        value={cardExpiry}
-                        onChange={handleExpiryChange}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-xs focus:ring-1 focus:ring-[#6757df] outline-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">CVV / CVC Code</label>
-                      <input
-                        type="password"
-                        required={paymentMethod === 'stripe'}
-                        placeholder="123"
-                        value={cardCvv}
-                        onChange={handleCvvChange}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-xs focus:ring-1 focus:ring-[#6757df] outline-none font-mono"
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1.5 text-[10px] text-gray-400 pt-1">
+                <div className="flex items-center gap-1.5 text-[10px] text-gray-400 pt-1 border-t border-dashed border-gray-270">
                   <Lock size={12} className="text-[#a98d63]" />
-                  <span>Fully encrypted 256-Bit Stripe Sandbox TLS Tunnel Sourced Lahore.</span>
+                  <span>Encrypted receipt stored inside sandbox database layers securely.</span>
                 </div>
               </div>
             )}

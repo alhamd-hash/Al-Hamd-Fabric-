@@ -3,7 +3,7 @@ import {
   ShoppingBag, Trash2, X, Star, Calendar, MessageSquare, Menu, Globe, Phone,
   MapPin, Heart, Share2, Facebook, Instagram, Send, Sparkles, CheckCircle2, ChevronRight, ArrowRight, CornerDownRight, Loader, Tag, ShieldAlert
 } from 'lucide-react';
-import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from './types';
+import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, Category } from './types';
 import {
   getStoredProducts, saveStoredProducts,
   getStoredCollections, saveStoredCollections,
@@ -25,8 +25,21 @@ import {
   deleteReviewInFirestore,
   addBannerToFirestore,
   updateBannerInFirestore,
-  deleteBannerFromFirestore
+  deleteBannerFromFirestore,
+  listenToProducts,
+  addProductToFirestore,
+  updateProductInFirestore,
+  deleteProductFromFirestore,
+  listenToCollections,
+  addCollectionToFirestore,
+  updateCollectionInFirestore,
+  deleteCollectionFromFirestore,
+  listenToCategories,
+  addCategoryToFirestore,
+  updateCategoryInFirestore,
+  deleteCategoryFromFirestore
 } from './firebase';
+import { INITIAL_COLLECTIONS, INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './data';
 
 // Core layout components
 import Navbar from './components/Navbar';
@@ -41,6 +54,7 @@ export default function App() {
   // Global Persisted States (Local Storage)
   const [products, setProducts] = useState<Product[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -103,12 +117,6 @@ export default function App() {
       }
     );
 
-    // Bind real-time banners sync from Firestore
-    const storedBanners = localStorage.getItem('alhamd_banners');
-    if (storedBanners) {
-      setBanners(JSON.parse(storedBanners));
-    }
-
     const unsubscribeBanners = listenToBanners(
       (firestoreBanners) => {
         setBanners(firestoreBanners);
@@ -118,6 +126,86 @@ export default function App() {
         console.warn('Firestore banners sync deactivated:', error);
       }
     );
+
+    const unsubscribeProducts = listenToProducts(
+      async (firestoreProducts) => {
+        const isSeeded = localStorage.getItem('alhamd_products_seeded') === 'true';
+        if (firestoreProducts.length === 0 && !isSeeded) {
+          localStorage.setItem('alhamd_products_seeded', 'true');
+          try {
+            for (const prod of INITIAL_PRODUCTS) {
+              await addProductToFirestore(prod);
+            }
+          } catch (e) {
+            console.error('Failed to bootstrap products:', e);
+          }
+        } else {
+          if (firestoreProducts.length > 0) {
+            localStorage.setItem('alhamd_products_seeded', 'true');
+          }
+          setProducts(firestoreProducts);
+          saveStoredProducts(firestoreProducts);
+        }
+      },
+      (error) => {
+        console.warn('Firestore products sync deactivated:', error);
+      }
+    );
+
+    const unsubscribeCollections = listenToCollections(
+      async (firestoreCollections) => {
+        const isSeeded = localStorage.getItem('alhamd_collections_seeded') === 'true';
+        if (firestoreCollections.length === 0 && !isSeeded) {
+          localStorage.setItem('alhamd_collections_seeded', 'true');
+          try {
+            for (const col of INITIAL_COLLECTIONS) {
+              await addCollectionToFirestore(col);
+            }
+          } catch (e) {
+            console.error('Failed to bootstrap collections:', e);
+          }
+        } else {
+          if (firestoreCollections.length > 0) {
+            localStorage.setItem('alhamd_collections_seeded', 'true');
+          }
+          setCollections(firestoreCollections);
+          saveStoredCollections(firestoreCollections);
+        }
+      },
+      (error) => {
+        console.warn('Firestore collections sync deactivated:', error);
+      }
+    );
+
+    const unsubscribeCategories = listenToCategories(
+      async (firestoreCategories) => {
+        const isSeeded = localStorage.getItem('alhamd_categories_seeded') === 'true';
+        if (firestoreCategories.length === 0 && !isSeeded) {
+          localStorage.setItem('alhamd_categories_seeded', 'true');
+          try {
+            for (const cat of INITIAL_CATEGORIES) {
+              await addCategoryToFirestore(cat);
+            }
+          } catch (e) {
+            console.error('Failed to bootstrap categories:', e);
+          }
+        } else {
+          if (firestoreCategories.length > 0) {
+            localStorage.setItem('alhamd_categories_seeded', 'true');
+          }
+          setCategories(firestoreCategories);
+        }
+      },
+      (error) => {
+        console.warn('Firestore categories sync deactivated:', error);
+      }
+    );
+
+    // Bind real-time banners sync from Firestore
+    const storedBanners = localStorage.getItem('alhamd_banners');
+    if (storedBanners) {
+      setBanners(JSON.parse(storedBanners));
+    }
 
     // Load custom notifications if existing
     const storedNotifs = localStorage.getItem('alhamd_notifications');
@@ -129,6 +217,9 @@ export default function App() {
       unsubscribeOrders();
       unsubscribeReviews();
       unsubscribeBanners();
+      unsubscribeProducts();
+      unsubscribeCollections();
+      unsubscribeCategories();
     };
   }, []);
 
@@ -327,40 +418,100 @@ export default function App() {
   };
 
   // --- Admin actions ---
-  const handleAddProduct = (prod: Product) => {
+  const handleAddProduct = async (prod: Product) => {
     const updated = [prod, ...products];
     setProducts(updated);
     saveStoredProducts(updated);
+    try {
+      await addProductToFirestore(prod);
+    } catch (err) {
+      console.error('Failed to save product to Firestore:', err);
+    }
   };
 
-  const handleEditProduct = (prod: Product) => {
+  const handleEditProduct = async (prod: Product) => {
     const updated = products.map(p => p.id === prod.id ? prod : p);
     setProducts(updated);
     saveStoredProducts(updated);
+    try {
+      await updateProductInFirestore(prod.id, prod);
+    } catch (err) {
+      console.error('Failed to update product in Firestore:', err);
+    }
   };
 
-  const handleDeleteProduct = (id: string) => {
+  const handleDeleteProduct = async (id: string) => {
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
     saveStoredProducts(updated);
+    try {
+      await deleteProductFromFirestore(id);
+    } catch (err) {
+      console.error('Failed to delete product from Firestore:', err);
+    }
   };
 
-  const handleAddCollection = (col: Collection) => {
+  const handleAddCollection = async (col: Collection) => {
     const updated = [...collections, col];
     setCollections(updated);
     saveStoredCollections(updated);
+    try {
+      await addCollectionToFirestore(col);
+    } catch (err) {
+      console.error('Failed to save collection to Firestore:', err);
+    }
   };
 
-  const handleEditCollection = (col: Collection) => {
+  const handleEditCollection = async (col: Collection) => {
     const updated = collections.map(c => c.id === col.id ? col : c);
     setCollections(updated);
     saveStoredCollections(updated);
+    try {
+      await updateCollectionInFirestore(col.id, col);
+    } catch (err) {
+      console.error('Failed to update collection in Firestore:', err);
+    }
   };
 
-  const handleDeleteCollection = (id: string) => {
+  const handleDeleteCollection = async (id: string) => {
     const updated = collections.filter(c => c.id !== id);
     setCollections(updated);
     saveStoredCollections(updated);
+    try {
+      await deleteCollectionFromFirestore(id);
+    } catch (err) {
+      console.error('Failed to delete collection from Firestore:', err);
+    }
+  };
+
+  const handleAddCategory = async (cat: Category) => {
+    const updated = [...categories, cat];
+    setCategories(updated);
+    try {
+      await addCategoryToFirestore(cat);
+    } catch (err) {
+      console.error('Failed to save category to Firestore:', err);
+    }
+  };
+
+  const handleEditCategory = async (cat: Category) => {
+    const updated = categories.map(c => c.id === cat.id ? cat : c);
+    setCategories(updated);
+    try {
+      await updateCategoryInFirestore(cat.id, cat);
+    } catch (err) {
+      console.error('Failed to update category in Firestore:', err);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    const updated = categories.filter(c => c.id !== id);
+    setCategories(updated);
+    try {
+      await deleteCategoryFromFirestore(id);
+    } catch (err) {
+      console.error('Failed to delete category from Firestore:', err);
+    }
   };
 
   const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
@@ -485,6 +636,7 @@ export default function App() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         collections={collections}
+        categories={categories}
       />
 
       {/* Main Content Stage container */}
@@ -543,6 +695,10 @@ export default function App() {
             onAddBanner={handleAddBanner}
             onUpdateBanner={handleUpdateBanner}
             onDeleteBanner={handleDeleteBanner}
+            categories={categories}
+            onAddCategory={handleAddCategory}
+            onEditCategory={handleEditCategory}
+            onDeleteCategory={handleDeleteCategory}
             onClose={() => handleNavigation('home')}
           />
         ) : currentView === 'about' ? (

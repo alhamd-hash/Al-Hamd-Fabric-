@@ -12,7 +12,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Order, Review, OrderStatus, HomeBanner } from './types';
+import { Order, Review, OrderStatus, HomeBanner, Product, Collection, Category } from './types';
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
@@ -235,3 +235,145 @@ export function listenToBanners(onUpdate: (banners: HomeBanner[]) => void, onErr
     }
   });
 }
+
+// --- Dynamic Products CRUD ---
+const PRODUCTS_PATH = 'products';
+
+export async function addProductToFirestore(prod: Product): Promise<void> {
+  const docRef = doc(db, PRODUCTS_PATH, prod.id);
+  try {
+    await setDoc(docRef, prod);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${PRODUCTS_PATH}/${prod.id}`);
+  }
+}
+
+export async function updateProductInFirestore(productId: string, prod: Product): Promise<void> {
+  const docRef = doc(db, PRODUCTS_PATH, productId);
+  try {
+    await setDoc(docRef, prod);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `${PRODUCTS_PATH}/${productId}`);
+  }
+}
+
+export async function deleteProductFromFirestore(productId: string): Promise<void> {
+  const docRef = doc(db, PRODUCTS_PATH, productId);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${PRODUCTS_PATH}/${productId}`);
+  }
+}
+
+export function listenToProducts(onUpdate: (products: Product[]) => void, onError?: (err: Error) => void) {
+  const productsCol = collection(db, PRODUCTS_PATH);
+  return onSnapshot(productsCol, (snapshot) => {
+    const list: Product[] = [];
+    snapshot.forEach((d) => {
+      list.push(d.data() as Product);
+    });
+    onUpdate(list);
+  }, (error) => {
+    if (onError) {
+      onError(error);
+    } else {
+      handleFirestoreError(error, OperationType.GET, PRODUCTS_PATH);
+    }
+  });
+}
+
+// --- Dynamic Collections CRUD ---
+const COLLECTIONS_PATH = 'collections';
+
+export async function addCollectionToFirestore(col: Collection): Promise<void> {
+  const docRef = doc(db, COLLECTIONS_PATH, col.id);
+  try {
+    await setDoc(docRef, col);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${COLLECTIONS_PATH}/${col.id}`);
+  }
+}
+
+export async function updateCollectionInFirestore(colId: string, col: Collection): Promise<void> {
+  const docRef = doc(db, COLLECTIONS_PATH, colId);
+  try {
+    await setDoc(docRef, col);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `${COLLECTIONS_PATH}/${colId}`);
+  }
+}
+
+export async function deleteCollectionFromFirestore(colId: string): Promise<void> {
+  const docRef = doc(db, COLLECTIONS_PATH, colId);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${COLLECTIONS_PATH}/${colId}`);
+  }
+}
+
+export function listenToCollections(onUpdate: (collections: Collection[]) => void, onError?: (err: Error) => void) {
+  const collectionsCol = collection(db, COLLECTIONS_PATH);
+  return onSnapshot(collectionsCol, (snapshot) => {
+    const list: Collection[] = [];
+    snapshot.forEach((d) => {
+      list.push(d.data() as Collection);
+    });
+    onUpdate(list);
+  }, (error) => {
+    if (onError) {
+      onError(error);
+    } else {
+      handleFirestoreError(error, OperationType.GET, COLLECTIONS_PATH);
+    }
+  });
+}
+
+// --- Dynamic Categories CRUD ---
+const CATEGORIES_PATH = 'categories';
+
+export async function addCategoryToFirestore(cat: Category): Promise<void> {
+  const docRef = doc(db, CATEGORIES_PATH, cat.id);
+  try {
+    await setDoc(docRef, cat);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${CATEGORIES_PATH}/${cat.id}`);
+  }
+}
+
+export async function updateCategoryInFirestore(catId: string, cat: Category): Promise<void> {
+  const docRef = doc(db, CATEGORIES_PATH, catId);
+  try {
+    await setDoc(docRef, cat);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `${CATEGORIES_PATH}/${catId}`);
+  }
+}
+
+export async function deleteCategoryFromFirestore(catId: string): Promise<void> {
+  const docRef = doc(db, CATEGORIES_PATH, catId);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${CATEGORIES_PATH}/${catId}`);
+  }
+}
+
+export function listenToCategories(onUpdate: (categories: Category[]) => void, onError?: (err: Error) => void) {
+  const categoriesCol = collection(db, CATEGORIES_PATH);
+  return onSnapshot(categoriesCol, (snapshot) => {
+    const list: Category[] = [];
+    snapshot.forEach((d) => {
+      list.push(d.data() as Category);
+    });
+    onUpdate(list);
+  }, (error) => {
+    if (onError) {
+      onError(error);
+    } else {
+      handleFirestoreError(error, OperationType.GET, CATEGORIES_PATH);
+    }
+  });
+}
+

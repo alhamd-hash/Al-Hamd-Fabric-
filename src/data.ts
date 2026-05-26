@@ -1,6 +1,26 @@
 import { Collection, Product, Review, Category } from './types';
 
 export const INITIAL_COLLECTIONS: Collection[] = [
+  {
+    id: 'new-arrivals',
+    name: 'New Arrivals',
+    image: 'https://images.unsplash.com/photo-1520006403909-838d6b92c22e?auto=format&fit=crop&q=80&w=300&h=300',
+    banner: 'https://images.unsplash.com/photo-1520006403909-838d6b92c22e?auto=format&fit=crop&q=80&w=1500&h=500',
+    description: 'Our freshest unstitched Lawn and designer cotton arrivals straight from Lahore.',
+    isGents: false,
+    showInNavbar: true,
+    showProductsOnHomepage: false
+  },
+  {
+    id: 'hot-selling',
+    name: 'Hot Selling',
+    image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&q=80&w=300&h=300',
+    banner: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&q=80&w=1500&h=500',
+    description: 'Our most popular and highly demanded premium suites.',
+    isGents: false,
+    showInNavbar: true,
+    showProductsOnHomepage: false
+  },
   // Gents Collections (Upper line)
   {
     id: 'gents-summer-suits',

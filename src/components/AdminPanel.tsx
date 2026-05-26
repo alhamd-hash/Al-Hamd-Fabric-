@@ -91,6 +91,7 @@ export default function AdminPanel({
   const [colBanner, setColBanner] = useState('');
   const [colIsGents, setColIsGents] = useState(true);
   const [colShowInNavbar, setColShowInNavbar] = useState(true);
+  const [colShowProductsOnHomepage, setColShowProductsOnHomepage] = useState(false);
   const [colLinkedCategoryIds, setColLinkedCategoryIds] = useState<string[]>([]);
 
   // --- New Category Form States ---
@@ -100,6 +101,7 @@ export default function AdminPanel({
   const [catDesc, setCatDesc] = useState('');
   const [catIsGents, setCatIsGents] = useState(true);
   const [catShowInNavbar, setCatShowInNavbar] = useState(true);
+  const [catShowProductsOnHomepage, setCatShowProductsOnHomepage] = useState(false);
 
   // --- New Product Form States ---
   const [showProdForm, setShowProdForm] = useState(false);
@@ -233,6 +235,7 @@ export default function AdminPanel({
       banner: colBanner || 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=1200&h=400',
       isGents: colIsGents,
       showInNavbar: colShowInNavbar,
+      showProductsOnHomepage: colShowProductsOnHomepage,
       linkedCategoryIds: colLinkedCategoryIds
     };
 
@@ -249,6 +252,7 @@ export default function AdminPanel({
     setColBanner('');
     setColIsGents(true);
     setColShowInNavbar(true);
+    setColShowProductsOnHomepage(false);
     setColLinkedCategoryIds([]);
     setEditingColId(null);
     setShowColForm(false);
@@ -262,6 +266,7 @@ export default function AdminPanel({
     setColBanner(col.banner);
     setColIsGents(col.isGents !== false);
     setColShowInNavbar(col.showInNavbar !== false);
+    setColShowProductsOnHomepage(col.showProductsOnHomepage || false);
     setColLinkedCategoryIds(col.linkedCategoryIds || []);
     setShowColForm(true);
   };
@@ -276,7 +281,8 @@ export default function AdminPanel({
       name: catName,
       description: catDesc || 'Product category description.',
       isGents: catIsGents,
-      showInNavbar: catShowInNavbar
+      showInNavbar: catShowInNavbar,
+      showProductsOnHomepage: catShowProductsOnHomepage
     };
 
     if (editingCatId) {
@@ -290,6 +296,7 @@ export default function AdminPanel({
     setCatDesc('');
     setCatIsGents(true);
     setCatShowInNavbar(true);
+    setCatShowProductsOnHomepage(false);
     setEditingCatId(null);
     setShowCatForm(false);
   };
@@ -300,6 +307,7 @@ export default function AdminPanel({
     setCatDesc(cat.description);
     setCatIsGents(cat.isGents);
     setCatShowInNavbar(cat.showInNavbar !== false);
+    setCatShowProductsOnHomepage(cat.showProductsOnHomepage || false);
     setShowCatForm(true);
   };
 
@@ -2291,6 +2299,20 @@ export default function AdminPanel({
                           <span className="font-semibold text-gray-750">Show on Public Navigation / Menu</span>
                         </label>
                         <p className="text-[9px] text-gray-400 mt-1">If unchecked, this collection hides from headers and storefront grids, but stays fully manageable in admin dashboard linking.</p>
+
+                        <div className="mt-4">
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Home Page Setting</label>
+                          <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 p-2.5 rounded-lg select-none">
+                            <input
+                              type="checkbox"
+                              checked={colShowProductsOnHomepage}
+                              onChange={(e) => setColShowProductsOnHomepage(e.target.checked)}
+                              className="rounded text-[#1e152a] focus:ring-[#1e152a] w-4 h-4 cursor-pointer"
+                            />
+                            <span className="font-semibold text-gray-755">Show Products on Home Page</span>
+                          </label>
+                          <p className="text-[9px] text-gray-400 mt-1">If enabled, a dedicated row of unstitched fabrics featured under this collection will dynamically display on the home storefront page.</p>
+                        </div>
                       </div>
 
                       <div>
@@ -2641,18 +2663,34 @@ export default function AdminPanel({
                       />
                     </div>
 
-                    <div className="sm:col-span-2 border-t border-gray-200/50 pt-3">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Navigation Setting</label>
-                      <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 p-2.5 rounded-lg select-none max-w-sm">
-                        <input
-                          type="checkbox"
-                          checked={catShowInNavbar}
-                          onChange={(e) => setCatShowInNavbar(e.target.checked)}
-                          className="rounded text-[#1e152a] focus:ring-[#1e152a] w-4 h-4 cursor-pointer"
-                        />
-                        <span className="font-semibold text-gray-750">Show on Public Navigation / Menu</span>
-                      </label>
-                      <p className="text-[9px] text-gray-400 mt-1">If unchecked, this category hides from header layout menus, but stays fully available to link inside collections or products.</p>
+                    <div className="sm:col-span-2 border-t border-gray-200/50 pt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Navigation Setting</label>
+                        <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 p-2.5 rounded-lg select-none">
+                          <input
+                            type="checkbox"
+                            checked={catShowInNavbar}
+                            onChange={(e) => setCatShowInNavbar(e.target.checked)}
+                            className="rounded text-[#1e152a] focus:ring-[#1e152a] w-4 h-4 cursor-pointer"
+                          />
+                          <span className="font-semibold text-gray-750">Show on Public Navigation / Menu</span>
+                        </label>
+                        <p className="text-[9px] text-gray-400 mt-1">If unchecked, this category hides from header layout menus, but stays fully available to link inside collections or products.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Home Page Setting</label>
+                        <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 p-2.5 rounded-lg select-none">
+                          <input
+                            type="checkbox"
+                            checked={catShowProductsOnHomepage}
+                            onChange={(e) => setCatShowProductsOnHomepage(e.target.checked)}
+                            className="rounded text-[#1e152a] focus:ring-[#1e152a] w-4 h-4 cursor-pointer"
+                          />
+                          <span className="font-semibold text-gray-755">Show Products on Home Page</span>
+                        </label>
+                        <p className="text-[9px] text-gray-400 mt-1">If enabled, a dedicated row of unstitched fabrics featured under this category will dynamically display on the home storefront page.</p>
+                      </div>
                     </div>
                   </div>
 

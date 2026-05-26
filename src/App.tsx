@@ -190,6 +190,7 @@ export default function App() {
         const isSeeded = localStorage.getItem('alhamd_collections_seeded') === 'true';
         if (firestoreCollections.length === 0 && !isSeeded) {
           localStorage.setItem('alhamd_collections_seeded', 'true');
+          localStorage.setItem('alhamd_defaults_v2_synced', 'true');
           try {
             for (const col of INITIAL_COLLECTIONS) {
               await addCollectionToFirestore(col);
@@ -198,6 +199,25 @@ export default function App() {
             console.error('Failed to bootstrap collections:', e);
           }
         } else {
+          // Check for new arrivals and hot selling defaults in v2
+          const defaultsV2 = localStorage.getItem('alhamd_defaults_v2_synced') === 'true';
+          if (!defaultsV2) {
+            localStorage.setItem('alhamd_defaults_v2_synced', 'true');
+            try {
+              const hasNewArrivals = firestoreCollections.some(c => c.id === 'new-arrivals');
+              const hasHotSelling = firestoreCollections.some(c => c.id === 'hot-selling');
+              if (!hasNewArrivals) {
+                const nac = INITIAL_COLLECTIONS.find(c => c.id === 'new-arrivals');
+                if (nac) await addCollectionToFirestore(nac);
+              }
+              if (!hasHotSelling) {
+                const hsc = INITIAL_COLLECTIONS.find(c => c.id === 'hot-selling');
+                if (hsc) await addCollectionToFirestore(hsc);
+              }
+            } catch (e) {
+              console.error('Failed to auto-upgrade default collections:', e);
+            }
+          }
           if (firestoreCollections.length > 0) {
             localStorage.setItem('alhamd_collections_seeded', 'true');
           }
@@ -1271,6 +1291,86 @@ export default function App() {
                     </div>
                   )}
                 </section>
+
+                {/* DYNAMIC COLLECTIONS SECTIONS (Show on Homepage Option) */}
+                {collections.filter(col => col.showProductsOnHomepage).map(col => {
+                  const colProducts = products.filter(p => p.collectionId === col.id);
+                  if (colProducts.length === 0) return null;
+                  return (
+                    <section key={col.id} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-6" id={`col-homepage-${col.id}`}>
+                      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                        <div>
+                          <h2 className="font-serif text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#110c18] tracking-tight flex items-center gap-2">
+                            <span className="text-[#c5a880]">⚜️</span>
+                            {col.name}
+                          </h2>
+                          <p className="text-gray-400 text-xs mt-1">{col.description}</p>
+                        </div>
+                        <button
+                          onClick={() => handleNavigation('collection', col.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#c5a880] hover:text-[#110c18] transition-colors cursor-pointer"
+                        >
+                          View All
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
+                        {colProducts.slice(0, 10).map(prod => (
+                          <ProductCard
+                            key={prod.id}
+                            product={prod}
+                            layout="compact-grid"
+                            onViewDetails={(id) => setSelectedProductId(id)}
+                            onAddToCart={handleAddToCart}
+                            isWishlisted={wishlist.includes(prod.id)}
+                            onToggleWishlist={handleToggleWishlist}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+
+                {/* DYNAMIC CATEGORIES SECTIONS (Show on Homepage Option) */}
+                {(categories || []).filter(cat => cat.showProductsOnHomepage).map(cat => {
+                  const catProducts = products.filter(p => p.category.toLowerCase().trim() === cat.name.toLowerCase().trim());
+                  if (catProducts.length === 0) return null;
+                  return (
+                    <section key={cat.id} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-6" id={`cat-homepage-${cat.id}`}>
+                      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                        <div>
+                          <h2 className="font-serif text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#110c18] tracking-tight flex items-center gap-2">
+                            <span className="text-[#c5a880] font-normal">{cat.isGents ? '👔' : '👗'}</span>
+                            {cat.name}
+                          </h2>
+                          <p className="text-gray-400 text-xs mt-1">{cat.description}</p>
+                        </div>
+                        <button
+                          onClick={() => handleNavigation('category', cat.name)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#c5a880] hover:text-[#110c18] transition-colors cursor-pointer"
+                        >
+                          View All
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
+                        {catProducts.slice(0, 10).map(prod => (
+                          <ProductCard
+                            key={prod.id}
+                            product={prod}
+                            layout="compact-grid"
+                            onViewDetails={(id) => setSelectedProductId(id)}
+                            onAddToCart={handleAddToCart}
+                            isWishlisted={wishlist.includes(prod.id)}
+                            onToggleWishlist={handleToggleWishlist}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
 
               </div>
             )}

@@ -65,9 +65,9 @@ export default function Navbar({
             className="flex items-center gap-1.5 xs:gap-2 sm:gap-3 cursor-pointer shrink shadow-2xs min-w-0"
             id="brand-logo"
           >
-            {/* Elegant logo mark styling */}
-            <div className="w-8 h-8 sm:w-11 sm:h-11 bg-[#1e152a] rounded-full flex items-center justify-center border-2 border-[#c5a880] shadow-sm transform hover:rotate-12 transition-transform duration-300 shrink-0">
-              <span className="font-serif font-semibold text-[#c5a880] text-xs sm:text-lg">AH</span>
+            {/* Elegant logo mark styling with custom SVG */}
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#1e152a] rounded-full flex items-center justify-center border-2 border-[#c5a880] shadow-md transform hover:rotate-12 transition-transform duration-300 shrink-0 overflow-hidden">
+              <img src="/favicon.svg" alt="Al-Hamd Logo" className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-serif font-bold text-xs xs:text-sm sm:text-lg md:text-2xl text-[#1e152a] tracking-tight leading-none truncate pr-1">

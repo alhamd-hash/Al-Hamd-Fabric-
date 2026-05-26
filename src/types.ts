@@ -34,6 +34,7 @@ export interface Collection {
   isGents?: boolean;
   showInNavbar?: boolean;
   linkedCategoryIds?: string[];
+  showProductsOnHomepage?: boolean;
 }
 
 export interface OrderItem {
@@ -110,5 +111,6 @@ export interface Category {
   description: string;
   isGents: boolean;
   showInNavbar?: boolean;
+  showProductsOnHomepage?: boolean;
 }
 

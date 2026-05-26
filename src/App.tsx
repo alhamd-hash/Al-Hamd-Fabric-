@@ -7,6 +7,7 @@ import { Product, Collection, Order, Review, Subscription, OrderStatus, Newslett
 import {
   getStoredProducts, saveStoredProducts,
   getStoredCollections, saveStoredCollections,
+  getStoredCategories, saveStoredCategories,
   getStoredOrders, saveStoredOrders,
   getStoredReviews, saveStoredReviews,
   getStoredSubscriptions, saveStoredSubscriptions,
@@ -61,6 +62,12 @@ export default function App() {
   const [notifications, setNotifications] = useState<NewsletterNotification[]>([]);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
 
+  // Preloader syncing state for new visitors and incognito to ensure they see live database changes immediately without flashes
+  const [isSyncing, setIsSyncing] = useState(() => {
+    const hasCache = getStoredProducts().length > 0 && getStoredCollections().length > 0;
+    return !hasCache; // sync screen active on first-ever load
+  });
+
   // Navigation Routing
   const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'checkout' | 'admin' | 'collection' | 'category'>('home');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
@@ -90,11 +97,28 @@ export default function App() {
   useEffect(() => {
     setProducts(getStoredProducts());
     setCollections(getStoredCollections());
+    setCategories(getStoredCategories());
     setSubscriptions(getStoredSubscriptions());
 
     // Start with local systems first for instantaneous boot UI
     setOrders(getStoredOrders());
     setReviews(getStoredReviews());
+
+    let productsLoaded = false;
+    let collectionsLoaded = false;
+    let categoriesLoaded = false;
+    let bannersLoaded = false;
+
+    const checkFinishedLoading = () => {
+      if (productsLoaded && collectionsLoaded && categoriesLoaded && bannersLoaded) {
+        setIsSyncing(false);
+      }
+    };
+
+    // Safe timeout to disable loader in case of poor connectivity
+    const safetyTimeout = setTimeout(() => {
+      setIsSyncing(false);
+    }, 2800);
 
     // Bind real-time server database listeners
     const unsubscribeOrders = listenToOrders(
@@ -121,9 +145,13 @@ export default function App() {
       (firestoreBanners) => {
         setBanners(firestoreBanners);
         localStorage.setItem('alhamd_banners', JSON.stringify(firestoreBanners));
+        bannersLoaded = true;
+        checkFinishedLoading();
       },
       (error) => {
         console.warn('Firestore banners sync deactivated:', error);
+        bannersLoaded = true;
+        checkFinishedLoading();
       }
     );
 
@@ -146,9 +174,13 @@ export default function App() {
           setProducts(firestoreProducts);
           saveStoredProducts(firestoreProducts);
         }
+        productsLoaded = true;
+        checkFinishedLoading();
       },
       (error) => {
         console.warn('Firestore products sync deactivated:', error);
+        productsLoaded = true;
+        checkFinishedLoading();
       }
     );
 
@@ -171,9 +203,13 @@ export default function App() {
           setCollections(firestoreCollections);
           saveStoredCollections(firestoreCollections);
         }
+        collectionsLoaded = true;
+        checkFinishedLoading();
       },
       (error) => {
         console.warn('Firestore collections sync deactivated:', error);
+        collectionsLoaded = true;
+        checkFinishedLoading();
       }
     );
 
@@ -194,10 +230,15 @@ export default function App() {
             localStorage.setItem('alhamd_categories_seeded', 'true');
           }
           setCategories(firestoreCategories);
+          saveStoredCategories(firestoreCategories);
         }
+        categoriesLoaded = true;
+        checkFinishedLoading();
       },
       (error) => {
         console.warn('Firestore categories sync deactivated:', error);
+        categoriesLoaded = true;
+        checkFinishedLoading();
       }
     );
 
@@ -214,6 +255,7 @@ export default function App() {
     }
 
     return () => {
+      clearTimeout(safetyTimeout);
       unsubscribeOrders();
       unsubscribeReviews();
       unsubscribeBanners();
@@ -526,14 +568,45 @@ export default function App() {
         console.error('Failed to delete cancelled order from Firestore database:', err);
       }
     } else {
-      const updated = orders.map(o => o.id === orderId ? { ...o, status } : o);
+      const updated = orders.map(o => {
+        if (o.id === orderId) {
+          let paymentStatus = o.paymentStatus;
+          if (o.paymentMethod === 'advance') {
+            if (status === 'Confirmed' || status === 'Dispatched' || status === 'On The Way' || status === 'Delivered') {
+              paymentStatus = 'paid';
+            } else if (status === 'Pending') {
+              paymentStatus = 'pending';
+            }
+          }
+          return { ...o, status, paymentStatus };
+        }
+        return o;
+      });
       setOrders(updated);
       saveStoredOrders(updated);
 
+      const targetOrder = updated.find(o => o.id === orderId);
+      if (targetOrder) {
+        try {
+          await updateOrderInFirestore(orderId, targetOrder);
+        } catch (err) {
+          console.error('Failed to update order status in Firestore database:', err);
+        }
+      }
+    }
+  };
+
+  const handleUpdateOrderPaymentStatus = async (orderId: string, paymentStatus: 'pending' | 'paid' | 'failed') => {
+    const updated = orders.map(o => o.id === orderId ? { ...o, paymentStatus } : o);
+    setOrders(updated);
+    saveStoredOrders(updated);
+
+    const targetOrder = updated.find(o => o.id === orderId);
+    if (targetOrder) {
       try {
-        await updateOrderStatusInFirestore(orderId, status);
+        await updateOrderInFirestore(orderId, targetOrder);
       } catch (err) {
-        console.error('Failed to update order status in Firestore database:', err);
+        console.error('Failed to update order payment status in Firestore database:', err);
       }
     }
   };
@@ -624,6 +697,39 @@ export default function App() {
   // Pick focused product detail
   const focusedProduct = products.find(p => p.id === selectedProductId);
 
+  if (isSyncing) {
+    return (
+      <div className="min-h-screen w-full bg-[#1e152a] flex flex-col items-center justify-center p-6 text-center text-[#f1ebd9]" id="luxury-app-preloader">
+        <div className="space-y-6 max-w-sm flex flex-col items-center">
+          {/* Elegant gold logo mark */}
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black/40 rounded-full flex items-center justify-center border-2 border-[#c5a880] shadow-xl relative animate-pulse">
+            <span className="font-serif font-extrabold text-[#c5a880] text-xl sm:text-2xl tracking-tighter">AH</span>
+            <div className="absolute inset-x-0 -bottom-1 flex justify-center">
+              <span className="bg-[#c5a880] text-[#1e152a] text-[8px] px-1.5 py-0.5 rounded-sm font-extrabold tracking-widest leading-none uppercase">LAHORE</span>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="font-serif text-xl sm:text-2xl font-bold tracking-wide">
+              Al-Hamd Fabrics
+            </h2>
+            <div className="w-12 h-0.5 bg-[#c5a880] mx-auto opacity-70"></div>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest">
+              Premium Unstitched Silhouettes
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center gap-1.5 pt-3">
+            <div className="w-7 h-7 border-2 border-[#c5a880] border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs text-gray-300 font-sans mt-3 animate-pulse leading-snug">
+              Syncing live fabrics, categories and new catalog arrivals from our Lahore store database...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full flex flex-col overflow-x-hidden font-sans" id="store-app-wrapper">
       
@@ -688,6 +794,7 @@ export default function App() {
             onEditCollection={handleEditCollection}
             onDeleteCollection={handleDeleteCollection}
             onUpdateOrderStatus={handleUpdateOrderStatus}
+            onUpdatePaymentStatus={handleUpdateOrderPaymentStatus}
             onMarkOrderReceived={handleMarkOrderReceived}
             onApproveReview={handleApproveReview}
             onRejectReview={handleRejectReview}

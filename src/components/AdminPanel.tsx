@@ -4,7 +4,7 @@ import {
   Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload
 } from 'lucide-react';
 import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from '../types';
-import { formatPKR } from '../utils';
+import { formatPKR, compressImage } from '../utils';
 
 interface AdminPanelProps {
   products: Product[];
@@ -25,6 +25,7 @@ interface AdminPanelProps {
   onEditCategory: (cat: Category) => void;
   onDeleteCategory: (id: string) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  onUpdatePaymentStatus: (orderId: string, status: 'pending' | 'paid' | 'failed') => void;
   onMarkOrderReceived: (orderId: string) => void;
   onApproveReview: (reviewId: string) => void;
   onRejectReview: (reviewId: string) => void;
@@ -54,6 +55,7 @@ export default function AdminPanel({
   onEditCategory,
   onDeleteCategory,
   onUpdateOrderStatus,
+  onUpdatePaymentStatus,
   onMarkOrderReceived,
   onApproveReview,
   onRejectReview,
@@ -70,6 +72,9 @@ export default function AdminPanel({
 
   // Dashboard Sub-views
   const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers'>('orders');
+
+  // Zoomed-in receipt image modal state
+  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
 
   // --- Order Filter states ---
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
@@ -400,26 +405,29 @@ export default function AdminPanel({
   };
 
   // --- Home Banner Form Handlers ---
-  const handleBannerImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 1 * 1024 * 1024) {
-      setBannerImageError('The image is too large! Please upload a compressed photo under 1MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setBannerImageError('The image is too large! Please upload a photo under 10MB.');
       return;
     }
 
     setBannerImageError('');
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setBannerImage(reader.result);
-      }
-    };
-    reader.onerror = () => {
-      setBannerImageError('Failed to read the file.');
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1200, 600, 0.75);
+      setBannerImage(compressed);
+    } catch (err) {
+      console.error('Failed to compress banner image:', err);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setBannerImage(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleBannerSubmit = async (e: React.FormEvent) => {
@@ -853,7 +861,9 @@ export default function AdminPanel({
                           <span className={`px-2 py-0.5 rounded-sm text-[9px] font-bold uppercase tracking-wider ${
                             order.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-amber-50 text-amber-800 border border-amber-100'
                           }`}>
-                            💳 {order.paymentMethod.toUpperCase() === 'STRIPE' ? 'STRIPE' : 'COD'} ({order.paymentStatus})
+                            💳 {order.paymentMethod === 'advance' 
+                              ? `ADVANCE (${order.advanceProvider?.toUpperCase() || 'MOBILE WALLET'}) - ${order.paymentStatus === 'paid' ? 'PAID/VERIFIED' : 'PENDING'}` 
+                              : (order.paymentMethod.toUpperCase() === 'STRIPE' ? `STRIPE (${order.paymentStatus})` : `COD (${order.paymentStatus})`)}
                           </span>
 
                           <select
@@ -901,6 +911,33 @@ export default function AdminPanel({
                               <p className="text-gray-500 mt-1 leading-relaxed">
                                 📍 {order.address}, {order.city}, {order.province}
                               </p>
+
+                              {order.paymentMethod === 'advance' && (
+                                <div className="mt-3 p-2.5 border border-dashed border-gray-200 rounded-lg bg-gray-50/50 space-y-2">
+                                  <span className="text-[9px] uppercase font-bold text-gray-400 block pb-1 border-b border-gray-100">
+                                    📸 ADVANCE TRANSFER RECEIPT
+                                  </span>
+                                  {order.paymentReceiptImage ? (
+                                    <div className="space-y-1.5 focus:outline-none">
+                                      <div className="relative group cursor-zoom-in max-w-[150px] border border-gray-150 rounded overflow-hidden shadow-3xs" onClick={() => setSelectedReceiptUrl(order.paymentReceiptImage || null)}>
+                                        <img src={order.paymentReceiptImage} alt="Receipt Slip" className="w-full max-h-24 object-cover" />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                          <Eye size={14} className="text-white" />
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedReceiptUrl(order.paymentReceiptImage || null)}
+                                        className="text-[10px] text-blue-650 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                                      >
+                                        🔍 Zoom/View Receipt
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-red-500 font-semibold block">⚠️ No screenshot uploaded</span>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -2135,14 +2172,20 @@ export default function AdminPanel({
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setColImage(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
+                                try {
+                                  const compressed = await compressImage(file, 600, 600, 0.7);
+                                  setColImage(compressed);
+                                } catch (err) {
+                                  console.error('Failed to compress collection image:', err);
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setColImage(reader.result as string);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
                               }
                             }}
                           />
@@ -2184,14 +2227,20 @@ export default function AdminPanel({
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setColBanner(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
+                                try {
+                                  const compressed = await compressImage(file, 1200, 600, 0.7);
+                                  setColBanner(compressed);
+                                } catch (err) {
+                                  console.error('Failed to compress collection banner:', err);
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setColBanner(reader.result as string);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
                               }
                             }}
                           />
@@ -2686,6 +2735,31 @@ export default function AdminPanel({
         </div>
 
       </div>
+
+      {/* Zoomed-in receipt screenshot modal */}
+      {selectedReceiptUrl && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-fade-in" onClick={() => setSelectedReceiptUrl(null)}>
+          <div className="relative max-w-2xl bg-white rounded-xl overflow-hidden shadow-2xl p-2 cursor-default animate-scale-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-2 border-b border-gray-150 px-2 mt-1">
+              <span className="text-[11px] font-bold text-[#1e152a] uppercase font-sans tracking-wide">
+                📸 Full Transfer Receipt Screenshot
+              </span>
+              <button
+                onClick={() => setSelectedReceiptUrl(null)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors font-bold text-gray-500 hover:text-red-500 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-1 max-h-[75vh] overflow-auto">
+              <img src={selectedReceiptUrl} alt="Screenshot receipt full view" className="max-w-full max-h-[70vh] object-contain mx-auto" />
+            </div>
+            <div className="bg-stone-50 p-3 text-center text-[10px] text-gray-500 font-sans border-t flex justify-center gap-1">
+              <span>Secure receipt review modal — Click anywhere outside or the "X" button to dismiss.</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

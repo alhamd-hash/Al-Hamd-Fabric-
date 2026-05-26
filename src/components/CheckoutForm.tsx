@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CreditCard, ShoppingBag, Truck, Check, HelpCircle, ShieldCheck, Lock, ArrowRight, AlertCircle, RefreshCw, Upload } from 'lucide-react';
 import { Product, Order } from '../types';
-import { formatPKR, calculateDeliveryCharges } from '../utils';
+import { formatPKR, calculateDeliveryCharges, compressImage } from '../utils';
 
 interface CheckoutFormProps {
   cart: { product: Product; quantity: number; selectedImage: string }[];
@@ -40,27 +40,39 @@ export default function CheckoutForm({
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const deliveryCharges = calculateDeliveryCharges(subtotal);
-  const grandTotal = subtotal + deliveryCharges;
+  const advanceDiscount = paymentMethod === 'advance' ? 200 : 0;
+  const grandTotal = Math.max(0, subtotal + deliveryCharges - advanceDiscount);
 
-  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setReceiptError('Please upload a valid image file (PNG, JPG, JPEG).');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) { // 2MB limit
-      setReceiptError('Image is too large. Please upload an image under 2MB.');
+    if (file.size > 12 * 1024 * 1024) { // 12MB limit now that we compress
+      setReceiptError('Image is too large. Please upload an image under 12MB.');
       return;
     }
     setReceiptError('');
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setPaymentReceiptImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    setIsProcessing(true);
+    setProcessingStep('Compressing verification receipt screenshot...');
+    try {
+      const compressedBase64 = await compressImage(file, 800, 800, 0.6);
+      setPaymentReceiptImage(compressedBase64);
+    } catch (err) {
+      console.error('Failed to compress receipt image:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setPaymentReceiptImage(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsProcessing(false);
+      setProcessingStep('');
+    }
   };
 
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
@@ -415,8 +427,13 @@ export default function CheckoutForm({
                       className="text-[#100c18] focus:ring-[#c5a880] w-4 h-4 cursor-pointer"
                     />
                     <div>
-                      <span className="font-bold text-sm block text-gray-800">JazzCash / EasyPaisa Advance</span>
-                      <span className="text-[10px] text-gray-400">Advance payment with instant transfer</span>
+                      <span className="font-bold text-sm block text-gray-800">
+                        JazzCash / EasyPaisa Advance
+                        <span className="ml-1.5 bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0.5 rounded font-extrabold font-mono uppercase tracking-wider">
+                          SAVE PKR 200
+                        </span>
+                      </span>
+                      <span className="text-[10px] text-gray-400">PKR 200 relaxation on advance payments</span>
                     </div>
                   </div>
                   <CreditCard size={20} className={paymentMethod === 'advance' ? 'text-[#c5a880]' : 'text-gray-400'} />
@@ -609,6 +626,13 @@ export default function CheckoutForm({
             {deliveryCharges > 0 && (
               <div className="p-3 bg-amber-50/50 border border-amber-100/50 rounded-lg text-amber-800 text-[10px] leading-relaxed">
                 📢 Delivery becomes <strong>FREE automatically</strong> if your cart total exceeds <strong>PKR 6,000</strong>. Buy for {formatPKR(6001 - subtotal)} more to qualify!
+              </div>
+            )}
+
+            {paymentMethod === 'advance' && (
+              <div className="flex justify-between text-emerald-600 font-bold">
+                <span>Advance Payment Relaxation:</span>
+                <span>-{formatPKR(200)}</span>
               </div>
             )}
 

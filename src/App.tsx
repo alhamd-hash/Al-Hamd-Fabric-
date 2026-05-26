@@ -3,6 +3,7 @@ import {
   ShoppingBag, Trash2, X, Star, Calendar, MessageSquare, Menu, Globe, Phone,
   MapPin, Heart, Share2, Facebook, Instagram, Send, Sparkles, CheckCircle2, ChevronRight, ArrowRight, CornerDownRight, Loader, Tag, ShieldAlert
 } from 'lucide-react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, Category } from './types';
 import {
   getStoredProducts, saveStoredProducts,
@@ -1615,6 +1616,8 @@ export default function App() {
         </div>
       </footer>
 
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </div>
   );
 }

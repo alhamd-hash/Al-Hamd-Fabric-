@@ -32,6 +32,8 @@ export interface Collection {
   banner: string;
   description: string;
   isGents?: boolean;
+  showInNavbar?: boolean;
+  linkedCategoryIds?: string[];
 }
 
 export interface OrderItem {
@@ -107,5 +109,6 @@ export interface Category {
   name: string;
   description: string;
   isGents: boolean;
+  showInNavbar?: boolean;
 }
 

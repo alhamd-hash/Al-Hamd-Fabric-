@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, ShoppingBag, Menu, X, Phone, MapPin, Truck } from 'lucide-react';
-import { Product } from '../types';
+import { Product, Collection, Category } from '../types';
 import { formatPKR } from '../utils';
 
 interface NavbarProps {
@@ -10,8 +10,8 @@ interface NavbarProps {
   onOpenTracker: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  collections: { id: string; name: string; isGents?: boolean }[];
-  categories?: { id: string; name: string; isGents: boolean; description: string }[];
+  collections: Collection[];
+  categories?: Category[];
 }
 
 export default function Navbar({
@@ -24,8 +24,8 @@ export default function Navbar({
   collections,
   categories = []
 }: NavbarProps) {
-  const dynamicLadiesCategories = categories ? categories.filter(c => !c.isGents).map(c => c.name) : [];
-  const dynamicGentsCategories = categories ? categories.filter(c => c.isGents).map(c => c.name) : [];
+  const dynamicLadiesCategories = categories ? categories.filter(c => !c.isGents && c.showInNavbar !== false).map(c => c.name) : [];
+  const dynamicGentsCategories = categories ? categories.filter(c => c.isGents && c.showInNavbar !== false).map(c => c.name) : [];
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -230,10 +230,10 @@ export default function Navbar({
                 </button>
                 <div className="absolute left-0 mt-0 w-64 bg-white rounded-md shadow-lg py-2 border border-gray-100 opacity-0 group-hover:opacity-100 transition-all duration-300 scale-95 origin-top-left pointer-events-none group-hover:pointer-events-auto group-hover:scale-100 z-50">
                   <div className="px-4 py-1.5 text-[10px] text-gray-400 border-b border-gray-50 uppercase tracking-wider font-bold">👔 Gents Collections</div>
-                  {collections.filter(c => c.isGents).length === 0 ? (
+                  {collections.filter(c => c.isGents && c.showInNavbar !== false).length === 0 ? (
                     <div className="px-5 py-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
                   ) : (
-                    collections.filter(c => c.isGents).map((col) => (
+                    collections.filter(c => c.isGents && c.showInNavbar !== false).map((col) => (
                       <button
                         key={col.id}
                         onClick={() => onNavigate('collection', col.id)}
@@ -244,10 +244,10 @@ export default function Navbar({
                     ))
                   )}
                   <div className="px-4 py-1.5 mt-1 text-[10px] text-gray-400 border-b border-gray-50 uppercase tracking-wider font-bold">👗 Ladies Collections</div>
-                  {collections.filter(c => !c.isGents).length === 0 ? (
+                  {collections.filter(c => !c.isGents && c.showInNavbar !== false).length === 0 ? (
                     <div className="px-5 py-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
                   ) : (
-                    collections.filter(c => !c.isGents).map((col) => (
+                    collections.filter(c => !c.isGents && c.showInNavbar !== false).map((col) => (
                       <button
                         key={col.id}
                         onClick={() => onNavigate('collection', col.id)}
@@ -404,10 +404,10 @@ export default function Navbar({
                     </button>
                     {mobileGentsColsOpen && (
                       <div className="pl-3 mt-1 space-y-1 bg-stone-50 rounded p-1.5 animate-fade-in">
-                        {collections.filter(c => c.isGents).length === 0 ? (
+                        {collections.filter(c => c.isGents && c.showInNavbar !== false).length === 0 ? (
                           <div className="w-full text-left py-2 px-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
                         ) : (
-                          collections.filter(c => c.isGents).map((col) => (
+                          collections.filter(c => c.isGents && c.showInNavbar !== false).map((col) => (
                             <button
                               key={col.id}
                               onClick={() => { onNavigate('collection', col.id); setMobileMenuOpen(false); }}
@@ -432,10 +432,10 @@ export default function Navbar({
                     </button>
                     {mobileLadiesColsOpen && (
                       <div className="pl-3 mt-1 space-y-1 bg-stone-50 rounded p-1.5 animate-fade-in">
-                        {collections.filter(c => !c.isGents).length === 0 ? (
+                        {collections.filter(c => !c.isGents && c.showInNavbar !== false).length === 0 ? (
                           <div className="w-full text-left py-2 px-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
                         ) : (
-                          collections.filter(c => !c.isGents).map((col) => (
+                          collections.filter(c => !c.isGents && c.showInNavbar !== false).map((col) => (
                             <button
                               key={col.id}
                               onClick={() => { onNavigate('collection', col.id); setMobileMenuOpen(false); }}

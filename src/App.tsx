@@ -72,6 +72,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'checkout' | 'admin' | 'collection' | 'category'>('home');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [collectionCategoryFilter, setCollectionCategoryFilter] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   // Search input state
@@ -321,11 +322,13 @@ export default function App() {
 
     if (view === 'collection' && payload) {
       setSelectedCollectionId(payload);
+      setCollectionCategoryFilter(null);
     } else if (view === 'category' && payload) {
       setSelectedCategoryName(payload);
     } else if (view === 'home') {
       setSelectedCollectionId(null);
       setSelectedCategoryName(null);
+      setCollectionCategoryFilter(null);
     }
   };
 
@@ -918,7 +921,17 @@ export default function App() {
           /* VIEW 6: CHOSEN DEDICATED COLLECTION PAGE (Circular Collections Deep-Link) */
           (() => {
             const col = collections.find(c => c.id === selectedCollectionId);
-            const colProducts = products.filter(p => p.collectionId === selectedCollectionId);
+            const baseProducts = products.filter(p => p.collectionId === selectedCollectionId);
+            
+            // Resolve linked categories
+            const linkedCats = col && col.linkedCategoryIds
+              ? categories.filter(cat => col.linkedCategoryIds?.includes(cat.id))
+              : [];
+              
+            // If the user picked a specific linked category, filter products by it. Else, show all inside this collection.
+            const displayedProducts = collectionCategoryFilter
+              ? baseProducts.filter(p => p.category.toLowerCase().trim() === collectionCategoryFilter.toLowerCase().trim())
+              : baseProducts;
             
             return (
               <div className="animate-fade-in" id="collection-view-banner">
@@ -937,34 +950,86 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Sub-categories link bar */}
-                <div className="bg-white border-b border-gray-100 py-3.5 text-xs text-center flex items-center justify-center gap-4 flex-wrap px-4">
-                  <span className="text-gray-400 font-bold uppercase tracking-wider">Quick Jump Subcategories:</span>
-                  {Array.from(new Set(colProducts.map(p => p.category))).map((cat, id) => (
-                    <button
-                      key={id}
-                      onClick={() => handleNavigation('category', cat as string)}
-                      className="px-3 py-1 bg-stone-50 border hover:border-[#c5a880] rounded hover:text-[#c5a880] transition-colors font-medium cursor-pointer"
-                    >
-                      {cat as string}
-                    </button>
-                  ))}
-                </div>
+                {/* Linked Categories Interactive Tab/Filter Bar */}
+                {linkedCats.length > 0 ? (
+                  <div className="bg-stone-50 border-b border-gray-200 py-4 px-4">
+                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block sm:inline">
+                        🏷️ Filter by Category:
+                      </span>
+                      <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
+                        <button
+                          onClick={() => setCollectionCategoryFilter(null)}
+                          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                            collectionCategoryFilter === null
+                              ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] shadow-xs'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-[#c5a880] hover:text-[#c5a880]'
+                          }`}
+                        >
+                          Show All ({baseProducts.length})
+                        </button>
+                        {linkedCats.map((cat) => {
+                          const count = baseProducts.filter(p => p.category.toLowerCase().trim() === cat.name.toLowerCase().trim()).length;
+                          return (
+                            <button
+                              key={cat.id}
+                              onClick={() => setCollectionCategoryFilter(cat.name)}
+                              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                                collectionCategoryFilter?.toLowerCase().trim() === cat.name.toLowerCase().trim()
+                                  ? 'bg-[#c5a880] text-[#1e152a] border-[#c5a880] shadow-xs'
+                                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#c5a880] hover:text-[#c5a880]'
+                              }`}
+                            >
+                              <span>{cat.isGents ? '👔' : '👗'}</span>
+                              <span>{cat.name}</span>
+                              <span className="opacity-60 font-monotext-[10px]">({count})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : baseProducts.length > 0 && (
+                  /* Standard auto sub-categories fallback when none are manually linked */
+                  <div className="bg-[#faf9f6]/50 border-b border-gray-100 py-3 text-xs text-center flex items-center justify-center gap-4 flex-wrap px-4">
+                    <span className="text-gray-400 font-bold uppercase tracking-wider">Explore Subcategories:</span>
+                    {Array.from(new Set(baseProducts.map(p => p.category))).map((cat, id) => (
+                      <button
+                        key={id}
+                        onClick={() => handleNavigation('category', cat as string)}
+                        className="px-3 py-1 bg-white border border-gray-200 hover:border-[#c5a880] rounded hover:text-[#c5a880] transition-colors font-medium cursor-pointer"
+                      >
+                        {cat as string}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
-                  <h2 className="font-serif text-2xl text-[#1e152a] font-bold tracking-tight border-b pb-2">
-                    Available Items in {col?.name || 'Collection'} ({colProducts.length})
-                  </h2>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b pb-4 gap-2">
+                    <h2 className="font-serif text-2xl text-[#1e152a] font-bold tracking-tight">
+                      Available Items in {col?.name || 'Collection'} ({displayedProducts.length})
+                    </h2>
+                    {collectionCategoryFilter && (
+                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 bg-gray-150 px-2.5 py-1 rounded">
+                        Filtered to <strong className="text-[#1e152a] font-bold">{collectionCategoryFilter}</strong>
+                      </span>
+                    )}
+                  </div>
 
-                  {colProducts.length === 0 ? (
+                  {displayedProducts.length === 0 ? (
                     <div className="text-center py-20 bg-stone-50 border border-dashed rounded-2xl">
                       <span className="text-4xl">🌸</span>
-                      <h4 className="font-serif font-bold text-gray-700 mt-2">New arrivals coming up shortly!</h4>
-                      <p className="text-xs text-gray-400 max-w-xs mx-auto mt-1">We are updating the unstitched inventory of {col?.name} as we speak. Check back in an hour!</p>
+                      <h4 className="font-serif font-bold text-gray-700 mt-2">No products found under this filter!</h4>
+                      <p className="text-xs text-gray-400 max-w-xs mx-auto mt-1">
+                        {collectionCategoryFilter 
+                          ? `We don't have any items registered under the "${collectionCategoryFilter}" category inside this collection yet.`
+                          : 'Our team is actively organizing and restocking this category catalogs now.'}
+                      </p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-                      {colProducts.map(prod => (
+                      {displayedProducts.map(prod => (
                         <ProductCard
                           key={prod.id}
                           product={prod}
@@ -1085,7 +1150,7 @@ export default function App() {
                       Gents Collections
                     </span>
                     <div className="flex gap-4 sm:gap-6 py-2 overflow-x-auto no-scrollbar scroll-smooth">
-                      {collections.filter(col => col.isGents).map((col) => (
+                      {collections.filter(col => col.isGents && col.showInNavbar !== false).map((col) => (
                         <div
                           key={col.id}
                           onClick={() => handleNavigation('collection', col.id)}
@@ -1114,7 +1179,7 @@ export default function App() {
                       Ladies Collections
                     </span>
                     <div className="flex gap-4 sm:gap-6 py-2 overflow-x-auto no-scrollbar scroll-smooth">
-                      {collections.filter(col => !col.isGents).map((col) => (
+                      {collections.filter(col => !col.isGents && col.showInNavbar !== false).map((col) => (
                         <div
                           key={col.id}
                           onClick={() => handleNavigation('collection', col.id)}
@@ -1486,12 +1551,12 @@ export default function App() {
           {/* Column 3: Collections Lists */}
           <div className="space-y-3.5">
             <h4 className="font-serif font-extrabold text-[#c5a880] text-sm uppercase tracking-wide">Featured Catalogs</h4>
-            <div className="flex flex-col gap-2 text-xs text-gray-400">
-              {collections.map(col => (
+            <div className="flex flex-col gap-2 text-xs text-gray-400 font-mono">
+              {collections.filter(c => c.showInNavbar !== false).map(col => (
                 <button
                   key={col.id}
                   onClick={() => handleNavigation('collection', col.id)}
-                  className="hover:text-[#c5a880] transition-colors text-left cursor-pointer"
+                  className="hover:text-[#c5a880] transition-colors text-left cursor-pointer text-xs"
                 >
                   • {col.name}
                 </button>

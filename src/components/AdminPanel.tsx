@@ -90,6 +90,8 @@ export default function AdminPanel({
   const [colImage, setColImage] = useState('');
   const [colBanner, setColBanner] = useState('');
   const [colIsGents, setColIsGents] = useState(true);
+  const [colShowInNavbar, setColShowInNavbar] = useState(true);
+  const [colLinkedCategoryIds, setColLinkedCategoryIds] = useState<string[]>([]);
 
   // --- New Category Form States ---
   const [showCatForm, setShowCatForm] = useState(false);
@@ -97,6 +99,7 @@ export default function AdminPanel({
   const [catName, setCatName] = useState('');
   const [catDesc, setCatDesc] = useState('');
   const [catIsGents, setCatIsGents] = useState(true);
+  const [catShowInNavbar, setCatShowInNavbar] = useState(true);
 
   // --- New Product Form States ---
   const [showProdForm, setShowProdForm] = useState(false);
@@ -228,7 +231,9 @@ export default function AdminPanel({
       description: colDesc || 'Premium clothing collection catalog item.',
       image: colImage || 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=300&h=300',
       banner: colBanner || 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=1200&h=400',
-      isGents: colIsGents
+      isGents: colIsGents,
+      showInNavbar: colShowInNavbar,
+      linkedCategoryIds: colLinkedCategoryIds
     };
 
     if (editingColId) {
@@ -243,6 +248,8 @@ export default function AdminPanel({
     setColImage('');
     setColBanner('');
     setColIsGents(true);
+    setColShowInNavbar(true);
+    setColLinkedCategoryIds([]);
     setEditingColId(null);
     setShowColForm(false);
   };
@@ -254,6 +261,8 @@ export default function AdminPanel({
     setColImage(col.image);
     setColBanner(col.banner);
     setColIsGents(col.isGents !== false);
+    setColShowInNavbar(col.showInNavbar !== false);
+    setColLinkedCategoryIds(col.linkedCategoryIds || []);
     setShowColForm(true);
   };
 
@@ -266,7 +275,8 @@ export default function AdminPanel({
       id: editingCatId || `cat-${Date.now()}`,
       name: catName,
       description: catDesc || 'Product category description.',
-      isGents: catIsGents
+      isGents: catIsGents,
+      showInNavbar: catShowInNavbar
     };
 
     if (editingCatId) {
@@ -279,6 +289,7 @@ export default function AdminPanel({
     setCatName('');
     setCatDesc('');
     setCatIsGents(true);
+    setCatShowInNavbar(true);
     setEditingCatId(null);
     setShowCatForm(false);
   };
@@ -288,6 +299,7 @@ export default function AdminPanel({
     setCatName(cat.name);
     setCatDesc(cat.description);
     setCatIsGents(cat.isGents);
+    setCatShowInNavbar(cat.showInNavbar !== false);
     setShowCatForm(true);
   };
 
@@ -2265,6 +2277,53 @@ export default function AdminPanel({
                         className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
                       />
                     </div>
+
+                    <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-200/50 pt-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Navigation Setting</label>
+                        <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 p-2.5 rounded-lg select-none">
+                          <input
+                            type="checkbox"
+                            checked={colShowInNavbar}
+                            onChange={(e) => setColShowInNavbar(e.target.checked)}
+                            className="rounded text-[#1e152a] focus:ring-[#1e152a] w-4 h-4 cursor-pointer"
+                          />
+                          <span className="font-semibold text-gray-750">Show on Public Navigation / Menu</span>
+                        </label>
+                        <p className="text-[9px] text-gray-400 mt-1">If unchecked, this collection hides from headers and storefront grids, but stays fully manageable in admin dashboard linking.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Link Categories to Collection</label>
+                        <div className="bg-white border border-gray-200 rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1.5">
+                          {categories.length === 0 ? (
+                            <span className="text-gray-400 italic text-[10px] block py-1">No categories found in database. Create categories first.</span>
+                          ) : (
+                            categories.map(cat => (
+                              <label key={cat.id} className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={colLinkedCategoryIds.includes(cat.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setColLinkedCategoryIds([...colLinkedCategoryIds, cat.id]);
+                                    } else {
+                                      setColLinkedCategoryIds(colLinkedCategoryIds.filter(id => id !== cat.id));
+                                    }
+                                  }}
+                                  className="rounded text-[#1e152a] focus:ring-[#1e152a] w-3.5 h-3.5 cursor-pointer"
+                                />
+                                <span className="font-semibold text-gray-700 text-[11px] flex items-center gap-1">
+                                  <span>{cat.isGents ? '👔' : '👗'}</span>
+                                  <span>{cat.name}</span>
+                                </span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-1">Select categories whose unstitched fabrics should be showcased inside this collection page.</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="pt-2 flex gap-2">
@@ -2580,6 +2639,20 @@ export default function AdminPanel({
                         onChange={(e) => setCatDesc(e.target.value)}
                         className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:border-[#c5a880]"
                       />
+                    </div>
+
+                    <div className="sm:col-span-2 border-t border-gray-200/50 pt-3">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Navigation Setting</label>
+                      <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 p-2.5 rounded-lg select-none max-w-sm">
+                        <input
+                          type="checkbox"
+                          checked={catShowInNavbar}
+                          onChange={(e) => setCatShowInNavbar(e.target.checked)}
+                          className="rounded text-[#1e152a] focus:ring-[#1e152a] w-4 h-4 cursor-pointer"
+                        />
+                        <span className="font-semibold text-gray-750">Show on Public Navigation / Menu</span>
+                      </label>
+                      <p className="text-[9px] text-gray-400 mt-1">If unchecked, this category hides from header layout menus, but stays fully available to link inside collections or products.</p>
                     </div>
                   </div>
 

@@ -52,6 +52,16 @@ export default function ProductCard({
           
           {/* Tag Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+            {product.isOnSale && (
+              <span className="bg-red-600 text-white text-[9px] font-extrabold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs animate-pulse">
+                SALE
+              </span>
+            )}
+            {product.promoTag && (
+              <span className="bg-[#1e152a] text-[#c5a880] text-[9px] font-extrabold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs border border-[#c5a880]/30">
+                {product.promoTag}
+              </span>
+            )}
             {product.isNewArrival && (
               <span className="bg-[#1e152a] text-[#f1ebd9] text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md">
                 NEW
@@ -109,9 +119,20 @@ export default function ProductCard({
           </div>
 
           <div className="pt-2 border-t border-gray-50 flex items-center justify-between">
-            <span className="font-sans text-[#1e152a] font-extrabold text-base">
-              {formatPKR(product.price)}
-            </span>
+            {product.isOnSale && product.originalPrice ? (
+              <div className="flex flex-col items-start leading-none">
+                <span className="font-sans text-red-600 font-extrabold text-base">
+                  {formatPKR(product.price)}
+                </span>
+                <span className="font-sans text-gray-400 line-through text-xs mt-0.5">
+                  {formatPKR(product.originalPrice)}
+                </span>
+              </div>
+            ) : (
+              <span className="font-sans text-[#1e152a] font-extrabold text-base">
+                {formatPKR(product.price)}
+              </span>
+            )}
             <div className="flex items-center gap-1">
               <Star size={13} className="text-amber-500 fill-amber-500" />
               <span className="text-xs font-semibold text-gray-700">{product.rating}</span>
@@ -139,6 +160,16 @@ export default function ProductCard({
 
         {/* Tag Badges */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10">
+          {product.isOnSale && (
+            <span className="bg-red-600 text-white text-[8px] font-extrabold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs animate-pulse">
+              SALE
+            </span>
+          )}
+          {product.promoTag && (
+            <span className="bg-[#1e152a] text-[#c5a880] text-[8px] font-extrabold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs border border-[#c5a880]/30">
+              {product.promoTag}
+            </span>
+          )}
           {product.isNewArrival && (
             <span className="bg-[#1e152a] text-[#f1ebd9] text-[8px] font-bold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md">
               NEW
@@ -196,9 +227,20 @@ export default function ProductCard({
         )}
 
         <div className="pt-2 flex items-center justify-between border-t border-gray-50">
-          <span className="font-sans text-[#1e152a] font-extrabold text-sm sm:text-base">
-            {formatPKR(product.price)}
-          </span>
+          {product.isOnSale && product.originalPrice ? (
+            <div className="flex flex-col items-start leading-none">
+              <span className="font-sans text-red-600 font-extrabold text-sm sm:text-base">
+                {formatPKR(product.price)}
+              </span>
+              <span className="font-sans text-gray-400 line-through text-[11px] mt-0.5">
+                {formatPKR(product.originalPrice)}
+              </span>
+            </div>
+          ) : (
+            <span className="font-sans text-[#1e152a] font-extrabold text-sm sm:text-base">
+              {formatPKR(product.price)}
+            </span>
+          )}
           <div className="flex items-center gap-0.5">
             <Star size={12} className="text-amber-500 fill-amber-500" />
             <span className="text-[10px] font-bold text-gray-600">{product.rating}</span>

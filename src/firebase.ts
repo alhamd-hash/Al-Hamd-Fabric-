@@ -80,6 +80,25 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+// Helper function to recursively remove all undefined properties from Firestore payload objects
+export function removeUndefinedFields<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefinedFields(item)) as any;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj as any)) {
+      const val = (obj as any)[key];
+      if (val !== undefined) {
+        cleaned[key] = removeUndefinedFields(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 // Document Operations for Orders and Reviews
 const ORDERS_PATH = 'orders';
 const REVIEWS_PATH = 'reviews';
@@ -88,7 +107,7 @@ const REVIEWS_PATH = 'reviews';
 export async function addOrderToFirestore(order: Order): Promise<void> {
   const docRef = doc(db, ORDERS_PATH, order.id);
   try {
-    await setDoc(docRef, order);
+    await setDoc(docRef, removeUndefinedFields(order));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${ORDERS_PATH}/${order.id}`);
   }
@@ -106,7 +125,7 @@ export async function updateOrderStatusInFirestore(orderId: string, status: Orde
 export async function updateOrderInFirestore(orderId: string, updatedOrder: Order): Promise<void> {
   const docRef = doc(db, ORDERS_PATH, orderId);
   try {
-    await setDoc(docRef, updatedOrder);
+    await setDoc(docRef, removeUndefinedFields(updatedOrder));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `${ORDERS_PATH}/${orderId}`);
   }
@@ -144,7 +163,7 @@ export function listenToOrders(onUpdate: (orders: Order[]) => void, onError?: (e
 export async function addReviewToFirestore(review: Review): Promise<void> {
   const docRef = doc(db, REVIEWS_PATH, review.id);
   try {
-    await setDoc(docRef, review);
+    await setDoc(docRef, removeUndefinedFields(review));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${REVIEWS_PATH}/${review.id}`);
   }
@@ -193,7 +212,7 @@ const BANNERS_PATH = 'banners';
 export async function addBannerToFirestore(banner: HomeBanner): Promise<void> {
   const docRef = doc(db, BANNERS_PATH, banner.id);
   try {
-    await setDoc(docRef, banner);
+    await setDoc(docRef, removeUndefinedFields(banner));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${BANNERS_PATH}/${banner.id}`);
   }
@@ -202,7 +221,7 @@ export async function addBannerToFirestore(banner: HomeBanner): Promise<void> {
 export async function updateBannerInFirestore(bannerId: string, banner: HomeBanner): Promise<void> {
   const docRef = doc(db, BANNERS_PATH, bannerId);
   try {
-    await setDoc(docRef, banner);
+    await setDoc(docRef, removeUndefinedFields(banner));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `${BANNERS_PATH}/${bannerId}`);
   }
@@ -242,7 +261,7 @@ const PRODUCTS_PATH = 'products';
 export async function addProductToFirestore(prod: Product): Promise<void> {
   const docRef = doc(db, PRODUCTS_PATH, prod.id);
   try {
-    await setDoc(docRef, prod);
+    await setDoc(docRef, removeUndefinedFields(prod));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${PRODUCTS_PATH}/${prod.id}`);
   }
@@ -251,7 +270,7 @@ export async function addProductToFirestore(prod: Product): Promise<void> {
 export async function updateProductInFirestore(productId: string, prod: Product): Promise<void> {
   const docRef = doc(db, PRODUCTS_PATH, productId);
   try {
-    await setDoc(docRef, prod);
+    await setDoc(docRef, removeUndefinedFields(prod));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `${PRODUCTS_PATH}/${productId}`);
   }
@@ -289,7 +308,7 @@ const COLLECTIONS_PATH = 'collections';
 export async function addCollectionToFirestore(col: Collection): Promise<void> {
   const docRef = doc(db, COLLECTIONS_PATH, col.id);
   try {
-    await setDoc(docRef, col);
+    await setDoc(docRef, removeUndefinedFields(col));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${COLLECTIONS_PATH}/${col.id}`);
   }
@@ -298,7 +317,7 @@ export async function addCollectionToFirestore(col: Collection): Promise<void> {
 export async function updateCollectionInFirestore(colId: string, col: Collection): Promise<void> {
   const docRef = doc(db, COLLECTIONS_PATH, colId);
   try {
-    await setDoc(docRef, col);
+    await setDoc(docRef, removeUndefinedFields(col));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `${COLLECTIONS_PATH}/${colId}`);
   }
@@ -336,7 +355,7 @@ const CATEGORIES_PATH = 'categories';
 export async function addCategoryToFirestore(cat: Category): Promise<void> {
   const docRef = doc(db, CATEGORIES_PATH, cat.id);
   try {
-    await setDoc(docRef, cat);
+    await setDoc(docRef, removeUndefinedFields(cat));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${CATEGORIES_PATH}/${cat.id}`);
   }
@@ -345,7 +364,7 @@ export async function addCategoryToFirestore(cat: Category): Promise<void> {
 export async function updateCategoryInFirestore(catId: string, cat: Category): Promise<void> {
   const docRef = doc(db, CATEGORIES_PATH, catId);
   try {
-    await setDoc(docRef, cat);
+    await setDoc(docRef, removeUndefinedFields(cat));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `${CATEGORIES_PATH}/${catId}`);
   }

@@ -71,7 +71,7 @@ export default function AdminPanel({
   const [loginError, setLoginError] = useState('');
 
   // Dashboard Sub-views
-  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers'>('orders');
+  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products'>('orders');
 
   // Zoomed-in receipt image modal state
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
@@ -92,6 +92,8 @@ export default function AdminPanel({
   const [colIsGents, setColIsGents] = useState(true);
   const [colShowInNavbar, setColShowInNavbar] = useState(true);
   const [colShowProductsOnHomepage, setColShowProductsOnHomepage] = useState(false);
+  const [colHomepageLayoutStyle, setColHomepageLayoutStyle] = useState<'grid' | 'carousel'>('grid');
+  const [colIsCombine, setColIsCombine] = useState(false);
   const [colLinkedCategoryIds, setColLinkedCategoryIds] = useState<string[]>([]);
 
   // --- New Category Form States ---
@@ -115,6 +117,13 @@ export default function AdminPanel({
   const [prodImage1, setProdImage1] = useState('');
   const [prodImage2, setProdImage2] = useState('');
   const [prodImage3, setProdImage3] = useState('');
+  const [prodImage4, setProdImage4] = useState('');
+  const [prodImage5, setProdImage5] = useState('');
+  const [isOnSale, setIsOnSale] = useState(false);
+  const [prodOriginalPrice, setProdOriginalPrice] = useState(0);
+  const [promoTag, setPromoTag] = useState('');
+  const [prodSelectedCollections, setProdSelectedCollections] = useState<string[]>([]);
+  const [prodSelectedCategories, setProdSelectedCategories] = useState<string[]>([]);
   
   // Specs and Ladies Suit Details
   const [specFabric, setSpecFabric] = useState('');
@@ -132,6 +141,10 @@ export default function AdminPanel({
 
   const [isNewArrival, setIsNewArrival] = useState(true);
   const [isHotSelling, setIsHotSelling] = useState(false);
+
+  // Admin Catalog Search & Row Flags Filter
+  const [adminProductSearch, setAdminProductSearch] = useState('');
+  const [adminProductFilterType, setAdminProductFilterType] = useState<'all' | 'newArrivals' | 'hotSelling'>('all');
 
   // --- New/Edit Home Banner Form States ---
   const [showBannerForm, setShowBannerForm] = useState(false);
@@ -236,6 +249,8 @@ export default function AdminPanel({
       isGents: colIsGents,
       showInNavbar: colShowInNavbar,
       showProductsOnHomepage: colShowProductsOnHomepage,
+      homepageLayoutStyle: colHomepageLayoutStyle,
+      isCombine: colIsCombine,
       linkedCategoryIds: colLinkedCategoryIds
     };
 
@@ -253,6 +268,8 @@ export default function AdminPanel({
     setColIsGents(true);
     setColShowInNavbar(true);
     setColShowProductsOnHomepage(false);
+    setColHomepageLayoutStyle('grid');
+    setColIsCombine(false);
     setColLinkedCategoryIds([]);
     setEditingColId(null);
     setShowColForm(false);
@@ -267,6 +284,8 @@ export default function AdminPanel({
     setColIsGents(col.isGents !== false);
     setColShowInNavbar(col.showInNavbar !== false);
     setColShowProductsOnHomepage(col.showProductsOnHomepage || false);
+    setColHomepageLayoutStyle(col.homepageLayoutStyle || 'grid');
+    setColIsCombine(!!col.isCombine);
     setColLinkedCategoryIds(col.linkedCategoryIds || []);
     setShowColForm(true);
   };
@@ -314,12 +333,32 @@ export default function AdminPanel({
   // Save/Update Product
   const handleProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prodName.trim() || prodPrice <= 0 || !prodCollection) return;
-
-    const imagesArray = [prodImage1, prodImage2, prodImage3].filter(img => img.trim() !== '');
-    if (imagesArray.length === 0) {
-      imagesArray.push('https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=600&h=800');
+    if (!prodName.trim() || prodPrice <= 0) {
+      alert("Sahi product title aur price likhein!");
+      return;
     }
+
+    const imagesArray = [prodImage1, prodImage2, prodImage3, prodImage4, prodImage5]
+      .map(img => img.trim())
+      .filter(img => img !== '');
+
+    if (imagesArray.length < 2) {
+      alert("Product save krne k liye kam se kam 2 images enter ya upload kryn! (Min 2, Max 5 Allowed)");
+      return;
+    }
+
+    if (prodSelectedCollections.length === 0) {
+      alert("Please check kam se kam aik collection select lzmi kryn!");
+      return;
+    }
+
+    if (prodSelectedCategories.length === 0) {
+      alert("Please check kam se kam aik category select lzmi kryn!");
+      return;
+    }
+
+    const firstCol = prodSelectedCollections[0];
+    const firstCat = prodSelectedCategories[0];
 
     const payload: Product = {
       id: editingProdId || `prod-${Date.now()}`,
@@ -328,8 +367,10 @@ export default function AdminPanel({
       description: prodDesc || 'Elegantly tailored traditional unstitched suit fabric with exquisite pattern design details.',
       price: prodPrice,
       images: imagesArray,
-      category: prodCategory || 'Lawn Unstitched',
-      collectionId: prodCollection,
+      category: firstCat,
+      collectionId: firstCol,
+      collectionIds: prodSelectedCollections,
+      categories: prodSelectedCategories,
       specifications: {
         'Fabric': specFabric || 'Premium Voile Lawn',
         'Dupatta': specDupatta || 'Silk Printed (2.5m)',
@@ -338,16 +379,12 @@ export default function AdminPanel({
         'Style': specStyle
       },
       isLadiesSuit,
-      ladiesSuitInfo: isLadiesSuit ? {
-        shirt: ladiesShirtDetail || 'Premium Unstitched Front/Back - 3m',
-        dupatta: ladiesDupattaDetail || 'Finished Dupatta Fabric - 2.5m',
-        trouser: ladiesTrouserDetail || 'Cambric Cotton Base - 2.5m',
-        fabricType: ladiesFabricType,
-        embroideryDetails: ladiesEmbroidery || 'Fully digital printed floral layouts with soft, color-fast textures.'
-      } : undefined,
       isNewArrival,
       isHotSelling,
-      rating: 4.8
+      rating: 4.8,
+      isOnSale,
+      originalPrice: isOnSale ? prodOriginalPrice : undefined,
+      promoTag: promoTag.trim() || undefined
     };
 
     if (editingProdId) {
@@ -365,11 +402,18 @@ export default function AdminPanel({
     setProdShort('');
     setProdDesc('');
     setProdPrice(0);
-    setProdCategory('Printed Suits');
+    setProdCategory('');
     setProdCollection('');
     setProdImage1('');
     setProdImage2('');
     setProdImage3('');
+    setProdImage4('');
+    setProdImage5('');
+    setIsOnSale(false);
+    setProdOriginalPrice(0);
+    setPromoTag('');
+    setProdSelectedCollections([]);
+    setProdSelectedCategories([]);
     
     setSpecFabric('');
     setSpecDupatta('');
@@ -402,22 +446,23 @@ export default function AdminPanel({
     setProdImage1(prod.images[0] || '');
     setProdImage2(prod.images[1] || '');
     setProdImage3(prod.images[2] || '');
+    setProdImage4(prod.images[3] || '');
+    setProdImage5(prod.images[4] || '');
 
-    setSpecFabric(prod.specifications['Fabric'] || '');
-    setSpecDupatta(prod.specifications['Dupatta'] || '');
-    setSpecShirt(prod.specifications['Shirt'] || '');
-    setSpecTrouser(prod.specifications['Trouser'] || '');
-    setSpecStyle(prod.specifications['Style'] || 'Unstitched 3-Piece');
+    setIsOnSale(!!prod.isOnSale);
+    setProdOriginalPrice(prod.originalPrice || 0);
+    setPromoTag(prod.promoTag || '');
 
-    setIsLadiesSuit(!!prod.isLadiesSuit);
-    if (prod.ladiesSuitInfo) {
-      setLadiesShirtDetail(prod.ladiesSuitInfo.shirt || '');
-      setLadiesDupattaDetail(prod.ladiesSuitInfo.dupatta || '');
-      setLadiesTrouserDetail(prod.ladiesSuitInfo.trouser || '');
-      setLadiesFabricType(prod.ladiesSuitInfo.fabricType || 'Lawn & Silk');
-      setLadiesEmbroidery(prod.ladiesSuitInfo.embroideryDetails || '');
-    }
+    setProdSelectedCollections(prod.collectionIds || (prod.collectionId ? [prod.collectionId] : []));
+    setProdSelectedCategories(prod.categories || (prod.category ? [prod.category] : []));
 
+    setSpecFabric(prod.specifications?.['Fabric'] || '');
+    setSpecDupatta(prod.specifications?.['Dupatta'] || '');
+    setSpecShirt(prod.specifications?.['Shirt'] || '');
+    setSpecTrouser(prod.specifications?.['Trouser'] || '');
+    setSpecStyle(prod.specifications?.['Style'] || 'Unstitched 3-Piece');
+
+    setIsLadiesSuit(prod.isLadiesSuit !== false);
     setIsNewArrival(!!prod.isNewArrival);
     setIsHotSelling(!!prod.isHotSelling);
 
@@ -712,6 +757,23 @@ export default function AdminPanel({
             {categories.length > 0 && (
               <span className="bg-[#c5a880]/20 text-[#c5a880] font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
                 {categories.length} Cats
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('products')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'products' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <ShoppingBag size={14} className="text-[#c5a880]" />
+              Manage Products
+            </span>
+            {products.length > 0 && (
+              <span className="bg-[#a89270] text-white font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                {products.length} Suits
               </span>
             )}
           </button>
@@ -1572,23 +1634,45 @@ export default function AdminPanel({
             </div>
           )}
 
-          {/* TAB 3: PRODUCT CATALOG (Add / Edit / Delete Products - REMOVED BY REQUEST) */}
-          {false && (
-            <div className="space-y-6 animate-fade-inOffice">
+          {/* TAB 3: PRODUCT CATALOG (Add / Edit / Delete Products - FULLY CUSTOMIZED & CONNECTED TO FIRESTORE) */}
+          {currentTab === 'products' && (
+            <div className="space-y-6 animate-fade-in leading-relaxed text-xs">
               <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-serif font-bold text-lg text-[#1e152a]">Inventory Store Catalog</h3>
                   <p className="text-xs text-gray-400">
-                    Add new arrivals, configure ladies' unstitched specifications, edit prices or delete entries instantly.
+                    Sahi main live Firebase database se products add, edit, or delete kryn. Configured with dual genders, sales, promotion tag and unstitched specs.
                   </p>
                 </div>
                 {!showProdForm && (
                   <button
                     onClick={() => {
                       setEditingProdId(null);
+                      setProdName('');
+                      setProdShort('');
+                      setProdDesc('');
+                      setProdPrice(0);
+                      setProdCategory('');
+                      setProdCollection('');
+                      setProdImage1('');
+                      setProdImage2('');
+                      setProdImage3('');
+                      setProdImage4('');
+                      setProdImage5('');
+                      setIsOnSale(false);
+                      setProdOriginalPrice(0);
+                      setPromoTag('');
+                      setProdSelectedCollections([]);
+                      setProdSelectedCategories([]);
+                      setSpecFabric('');
+                      setSpecDupatta('');
+                      setSpecShirt('');
+                      setSpecTrouser('');
+                      setSpecStyle('Unstitched 3-Piece');
+                      setIsLadiesSuit(true);
                       setShowProdForm(true);
                     }}
-                    className="py-2.5 px-4 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-bold uppercase text-xs tracking-wider rounded transition-all cursor-pointer flex items-center gap-1.5"
+                    className="py-2.5 px-4 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-bold uppercase text-xs tracking-wider rounded transition-all cursor-pointer flex items-center gap-1.5 animate-pulse"
                   >
                     <Plus size={14} /> Add New Suit
                   </button>
@@ -1597,9 +1681,10 @@ export default function AdminPanel({
 
               {/* Add/Edit Product Block Form */}
               {showProdForm && (
-                <form onSubmit={handleProductSubmit} className="p-5 bg-stone-50 border border-gray-200 rounded-xl text-xs space-y-4 animate-fade-in leading-relaxed">
+                <form onSubmit={handleProductSubmit} className="p-6 bg-stone-50 border border-gray-200 rounded-xl space-y-5 animate-fade-in leading-relaxed text-left">
                   <div className="flex justify-between items-center pb-2 border-b border-gray-200">
-                    <h4 className="font-serif font-bold text-md text-[#1e152a]">
+                    <h4 className="font-serif font-bold text-md text-[#1e152a] flex items-center gap-2">
+                      <ShoppingBag size={16} className="text-[#c5a880]" />
                       {editingProdId ? 'Modify Suit Specification Ledger' : 'Register New Unstitched / Lawn Suit'}
                     </h4>
                     <button
@@ -1611,8 +1696,46 @@ export default function AdminPanel({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="sm:col-span-2">
+                  {/* 1. GENDER SELECTION (Gents vs Ladies) */}
+                  <div className="p-4 bg-white border border-[#c5a880]/20 rounded-lg space-y-2">
+                    <span className="block text-[10px] font-bold text-[#c5a880] uppercase tracking-wider">Select Suit Catalog (Gents / Ladies) *</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsLadiesSuit(false);
+                          // Clear selection to avoid mismatch
+                          setProdSelectedCollections([]);
+                          setProdSelectedCategories([]);
+                        }}
+                        className={`py-3 px-4 font-bold border text-xs tracking-wide uppercase transition-all rounded cursor-pointer text-center flex items-center justify-center gap-2 ${
+                          !isLadiesSuit
+                            ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] shadow-xs'
+                            : 'bg-white text-gray-700 hover:bg-stone-50 border-stone-200'
+                        }`}
+                      >
+                        👔 Gents Collection & Category
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsLadiesSuit(true);
+                          setProdSelectedCollections([]);
+                          setProdSelectedCategories([]);
+                        }}
+                        className={`py-3 px-4 font-bold border text-xs tracking-wide uppercase transition-all rounded cursor-pointer text-center flex items-center justify-center gap-2 ${
+                          isLadiesSuit
+                            ? 'bg-[#1e152a] text-[#f1ebd9] border-[#1e152a] shadow-xs'
+                            : 'bg-white text-gray-700 hover:bg-stone-50 border-stone-200'
+                        }`}
+                      >
+                        👗 Ladies Collection & Category
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Product Title / Name *</label>
                       <input
                         type="text"
@@ -1620,7 +1743,7 @@ export default function AdminPanel({
                         placeholder="e.g. Traditional Embroidered Lawn Suit"
                         value={prodName}
                         onChange={(e) => setProdName(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
                       />
                     </div>
 
@@ -1632,11 +1755,11 @@ export default function AdminPanel({
                         placeholder="e.g. 2850"
                         value={prodPrice || ''}
                         onChange={(e) => setProdPrice(Number(e.target.value))}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1"
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div className="md:col-span-3">
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Short Details (appears as subtitle) *</label>
                       <input
                         type="text"
@@ -1644,84 +1767,225 @@ export default function AdminPanel({
                         placeholder="e.g. 3 Piece Unstitched Suit with Silk Dupatta"
                         value={prodShort}
                         onChange={(e) => setProdShort(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Target Category Catalog</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Printed Suits, Winter Khaddar, Silk, Wedding"
-                        value={prodCategory}
-                        onChange={(e) => setProdCategory(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Link to Collection *</label>
-                      <select
-                        required
-                        value={prodCollection}
-                        onChange={(e) => setProdCollection(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none cursor-pointer"
-                      >
-                        <option value="">Select linked collection...</option>
-                        {collections.map(col => (
-                          <option key={col.id} value={col.id}>{col.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Primary Image URL *</label>
-                      <input
-                        type="url"
-                        required
-                        placeholder="https://images.unsplash.com/photo-..."
-                        value={prodImage1}
-                        onChange={(e) => setProdImage1(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Additional Gallery Image 2 URL (Optional)</label>
-                      <input
-                        type="url"
-                        placeholder="https://images.unsplash.com/photo-..."
-                        value={prodImage2}
-                        onChange={(e) => setProdImage2(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Additional Gallery Image 3 URL (Optional)</label>
-                      <input
-                        type="url"
-                        placeholder="https://images.unsplash.com/photo-..."
-                        value={prodImage3}
-                        onChange={(e) => setProdImage3(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-3">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Long Formal Description</label>
-                      <textarea
-                        rows={3}
-                        placeholder="Explain weave pattern, color fastness, shrinkage parameters, style layouts..."
-                        value={prodDesc}
-                        onChange={(e) => setProdDesc(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none"
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
                       />
                     </div>
                   </div>
 
+                  {/* 2. INSTANT ON SALE TOGGLE & PROMOTION TAGS */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white/70 border border-stone-200 rounded-lg">
+                    {/* On Sale Switch */}
+                    <div className="space-y-2 text-left">
+                      <div className="flex items-center justify-between">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-500">On Sale / Discount Deal?</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsOnSale(!isOnSale)}
+                          className={`w-12 h-6 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${
+                            isOnSale ? 'bg-red-600' : 'bg-stone-300'
+                          }`}
+                        >
+                          <span
+                            className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ${
+                              isOnSale ? 'translate-x-6' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      
+                      {isOnSale ? (
+                        <div className="animate-fade-in p-3 bg-red-50/50 border border-red-100 rounded-md">
+                          <label className="block text-[10px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                            Original Price before discount (PKR) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="e.g. 4500 (Abhi waali price sale price ho gi aur aur ye crossed waali)"
+                            value={prodOriginalPrice || ''}
+                            onChange={(e) => setProdOriginalPrice(Number(e.target.value))}
+                            className="w-full bg-white border border-red-200 px-2.5 py-2 rounded focus:outline-none focus:ring-1 focus:ring-red-400 font-bold text-red-800"
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-gray-400 italic">Enable sale to display crossed out previous prices on the website.</p>
+                      )}
+                    </div>
+
+                    {/* Promo Tags */}
+                    <div className="space-y-1.5 text-left">
+                      <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Promotion Tag Badge (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. EID SPECIAL, FLAT 15% OFF, BEST SELLER"
+                        value={promoTag}
+                        onChange={(e) => setPromoTag(e.target.value)}
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
+                      />
+                      <span className="text-[9px] text-gray-400 block font-normal text-left">This badge renders on the product image overlay as a glowing tag (Max 1 label).</span>
+                    </div>
+                  </div>
+
+                  {/* 3. IMAGES MANAGMENT (Min 2, Max 5 Allowed) */}
+                  <div className="p-4 bg-white/70 border border-stone-200 rounded-lg space-y-3 text-left">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                      Product Suit Photos (Min 2 and Max 5 images)
+                    </span>
+                    <p className="text-[10px] text-gray-400 leading-snug font-normal text-left">
+                      Aap file upload kr k images direct load kr skte hain jo automatic optimize ho gi, ya direct online source image links copy paste kr skte hain. (Urgent: First 2 Images are Required).
+                    </p>
+
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4, 5].map((idx) => {
+                        const val =
+                          idx === 1 ? prodImage1 :
+                          idx === 2 ? prodImage2 :
+                          idx === 3 ? prodImage3 :
+                          idx === 4 ? prodImage4 : prodImage5;
+                        const setVal =
+                          idx === 1 ? setProdImage1 :
+                          idx === 2 ? setProdImage2 :
+                          idx === 3 ? setProdImage3 :
+                          idx === 4 ? setProdImage4 : setProdImage5;
+                        
+                        return (
+                          <div key={idx} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                            <div className="w-16 shrink-0 text-left font-bold text-[10px] text-gray-505">
+                              Image {idx} {idx <= 2 ? '*' : '(Optional)'}
+                            </div>
+                            <div className="flex-1 w-full flex items-center gap-2">
+                              <input
+                                type="url"
+                                required={idx <= 2}
+                                placeholder={`https://example.com/photo-${idx}.jpg`}
+                                value={val}
+                                onChange={(e) => setVal(e.target.value)}
+                                className="flex-1 bg-white border border-gray-200 px-3 py-1.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
+                              />
+                              
+                              <label className="cursor-pointer shrink-0 py-1.5 px-3 bg-stone-100 hover:bg-[#c5a880] text-black hover:text-white transition-all font-bold uppercase text-[9px] rounded flex items-center gap-1 border border-stone-200">
+                                <Upload size={10} />
+                                <span>Upload</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      try {
+                                        const comp = await compressImage(file, 800, 1000, 0.7);
+                                        setVal(comp);
+                                      } catch (err) {
+                                        console.error(err);
+                                      }
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
+                            
+                            {val && (
+                              <div className="w-10 h-10 rounded border border-gray-200 overflow-hidden bg-gray-50 flex-none">
+                                <img src={val} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 4. CHOOSE MULTIPLE CATEGORIES AND COLLECTIONS (GENDER RESTRICTED) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                    {/* Select Multiple Collections */}
+                    <div className="p-4 bg-white border border-stone-200 rounded-lg space-y-2">
+                      <span className="block text-[10px] font-bold text-[#c5a880] uppercase tracking-wider">
+                        Linked Collections * (Select Multiple Checkboxes)
+                      </span>
+                      <p className="text-[9px] text-gray-400">Showing only {isLadiesSuit ? 'Ladies' : 'Gents'} collections.</p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-stone-50 border border-stone-150 rounded max-h-40 overflow-y-auto">
+                        {collections
+                          .filter(col => isLadiesSuit ? !col.isGents : col.isGents)
+                          .map(col => {
+                            const isChecked = prodSelectedCollections.includes(col.id);
+                            return (
+                              <label key={col.id} className="flex items-center gap-2 cursor-pointer py-1 hover:bg-white px-1.5 rounded transition-all">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setProdSelectedCollections([...prodSelectedCollections, col.id]);
+                                    } else {
+                                      setProdSelectedCollections(prodSelectedCollections.filter(c => c !== col.id));
+                                    }
+                                  }}
+                                  className="accent-[#1e152a] rounded cursor-pointer"
+                                />
+                                <span className="font-semibold text-[11px] text-gray-755">{col.name}</span>
+                              </label>
+                            );
+                          })}
+                        {collections.filter(col => isLadiesSuit ? !col.isGents : col.isGents).length === 0 && (
+                          <div className="text-[10px] text-gray-400 italic text-center col-span-2 py-4">No collections found for this gender catalog!</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Select Multiple Categories */}
+                    <div className="p-4 bg-white border border-stone-200 rounded-lg space-y-2">
+                      <span className="block text-[10px] font-bold text-[#c5a880] uppercase tracking-wider">
+                        Linked Categories * (Select Multiple Checkboxes)
+                      </span>
+                      <p className="text-[9px] text-gray-400">Showing only {isLadiesSuit ? 'Ladies' : 'Gents'} categories.</p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-stone-50 border border-stone-150 rounded max-h-40 overflow-y-auto">
+                        {categories
+                          .filter(cat => isLadiesSuit ? !cat.isGents : cat.isGents)
+                          .map(cat => {
+                            const isChecked = prodSelectedCategories.includes(cat.name);
+                            return (
+                              <label key={cat.id} className="flex items-center gap-2 cursor-pointer py-1 hover:bg-white px-1.5 rounded transition-all">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setProdSelectedCategories([...prodSelectedCategories, cat.name]);
+                                    } else {
+                                      setProdSelectedCategories(prodSelectedCategories.filter(c => c !== cat.name));
+                                    }
+                                  }}
+                                  className="accent-[#1e152a] rounded cursor-pointer"
+                                />
+                                <span className="font-semibold text-[11px] text-gray-755">{cat.name}</span>
+                              </label>
+                            );
+                          })}
+                        {categories.filter(cat => isLadiesSuit ? !cat.isGents : cat.isGents).length === 0 && (
+                          <div className="text-[10px] text-gray-400 italic text-center col-span-2 py-4">No categories found for this gender catalog!</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description Box */}
+                  <div className="text-left">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Detailed Description *</label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Explain weave pattern, fabric comfort, size layout, stitch types, or wash rules..."
+                      value={prodDesc}
+                      onChange={(e) => setProdDesc(e.target.value)}
+                      className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
+                    />
+                  </div>
+
                   {/* Suit Specs Grid parameters */}
-                  <div className="p-4 bg-white/60 border border-gray-200 rounded-lg space-y-3">
+                  <div className="p-4 bg-white/60 border border-gray-200 rounded-lg space-y-3 text-left">
                     <span className="font-bold block uppercase text-[10px] tracking-wide text-gray-500">Quick Specs Sheet values</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
@@ -1747,193 +2011,308 @@ export default function AdminPanel({
                     </div>
                   </div>
 
-                  {/* Switch trigger if ladies suit */}
-                  <div className="flex items-center justify-between p-2 pb-0">
-                    <span className="font-bold text-gray-700">Is this a Ladies Suit?</span>
-                    <button
-                      type="button"
-                      onClick={() => setIsLadiesSuit(!isLadiesSuit)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                        isLadiesSuit ? 'bg-[#1e152a]' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ${
-                        isLadiesSuit ? 'translate-x-5' : 'translate-x-0'
-                      }`} />
-                    </button>
-                  </div>
-
-                  {isLadiesSuit && (
-                    <div className="p-4 bg-[#c5a880]/5 rounded-lg border border-[#c5a880]/20 grid grid-cols-1 sm:grid-cols-2 gap-3.5 animate-fade-in leading-relaxed">
-                      <span className="col-span-1 sm:col-span-2 font-serif font-bold text-xs text-[#1e152a] uppercase tracking-wide mb-1 border-b pb-1.5 border-[#c5a880]/10">
-                        Ladies Suit detailed fabric specs
-                      </span>
+                  {/* Switch trigger specifications */}
+                  <div className="grid grid-cols-2 gap-4 text-left">
+                    <label className="flex items-center gap-2 cursor-pointer font-bold select-none p-3 bg-white border border-gray-200 rounded">
+                      <input
+                        type="checkbox"
+                        checked={isNewArrival}
+                        onChange={(e) => setIsNewArrival(e.target.checked)}
+                        className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-400 shrink-0 cursor-pointer"
+                      />
                       <div>
-                        <label className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Shirt Cut Length *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Embroidered swiss front with printed back - 3m"
-                          value={ladiesShirtDetail}
-                          onChange={(e) => setLadiesShirtDetail(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded text-[11px]"
-                        />
+                        <span className="block text-[11px] text-gray-700">Flag as New Arrival</span>
+                        <span className="block text-[9px] text-gray-400 font-normal">Shows in the Homepage New Arrivals list.</span>
                       </div>
-                      <div>
-                        <label className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Dupatta cut length *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Pure chiffon printed - 2.5m"
-                          value={ladiesDupattaDetail}
-                          onChange={(e) => setLadiesDupattaDetail(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded text-[11px]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Trouser size details *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Dyed cambric cotton with patches - 2.5m"
-                          value={ladiesTrouserDetail}
-                          onChange={(e) => setLadiesTrouserDetail(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded text-[11px]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Fabric Type *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Swiss Lawn, Raw Silk, Karandi"
-                          value={ladiesFabricType}
-                          onChange={(e) => setLadiesFabricType(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded text-[11px]"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Embroidery & Threadwork detailed descriptions *</label>
-                        <textarea
-                          placeholder="e.g. Hand embellished tila work neckline, cross-stitch wool border on dupatta..."
-                          value={ladiesEmbroidery}
-                          onChange={(e) => setLadiesEmbroidery(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded text-[11px]"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Selection checkboxes */}
-                  <div className="flex gap-4 pt-1 text-xs">
-                    <label className="flex items-center gap-1.5 font-bold text-gray-600">
-                      <input type="checkbox" checked={isNewArrival} onChange={(e) => setIsNewArrival(e.target.checked)} className="rounded cursor-pointer" />
-                      Add to "New Arrivals"
                     </label>
-                    <label className="flex items-center gap-1.5 font-bold text-gray-600">
-                      <input type="checkbox" checked={isHotSelling} onChange={(e) => setIsHotSelling(e.target.checked)} className="rounded cursor-pointer" />
-                      Add to "Hot Selling Grid"
+
+                    <label className="flex items-center gap-2 cursor-pointer font-bold select-none p-3 bg-white border border-gray-200 rounded">
+                      <input
+                        type="checkbox"
+                        checked={isHotSelling}
+                        onChange={(e) => setIsHotSelling(e.target.checked)}
+                        className="w-4 h-4 text-emerald-500 rounded border-gray-300 focus:ring-emerald-400 shrink-0 cursor-pointer"
+                      />
+                      <div>
+                        <span className="block text-[11px] text-gray-700">Flag as Hot Selling</span>
+                        <span className="block text-[9px] text-gray-400 font-normal">Adds a Hot Tag overlay badge on grids.</span>
+                      </div>
                     </label>
                   </div>
 
-                  {!editingProdId && (
-                    <div className="bg-amber-100/50 p-2 text-amber-900 border border-amber-200 rounded text-[10px] leading-relaxed">
-                      💡 <strong>Notification Hook Trigger:</strong> Dispatches a newsletter notification dispatch simulator alert automatically to all <strong>{subscriptions.length}</strong> subscribed emails!
-                    </div>
-                  )}
-
-                  <div className="pt-2 flex gap-2">
+                  {/* Submission Row */}
+                  <div className="pt-2 border-t flex justify-end gap-2 text-xs">
                     <button
                       type="button"
                       onClick={() => setShowProdForm(false)}
-                      className="flex-1 py-2.5 border border-gray-200 rounded text-gray-700 font-bold uppercase tracking-wider cursor-pointer hover:bg-gray-50"
+                      className="py-2.5 px-4 bg-gray-200 hover:bg-gray-300 font-bold uppercase text-[10px] tracking-wider text-black rounded transition-all cursor-pointer"
                     >
-                      Back
+                      Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 py-2.5 bg-[#1e152a] text-white hover:bg-[#c5a880] hover:text-black font-extrabold rounded uppercase tracking-wider cursor-pointer"
+                      className="py-2.5 px-6 bg-[#1e152a] text-[#f1ebd9] hover:bg-emerald-600 hover:text-white font-bold uppercase text-[10px] tracking-wider rounded transition-all cursor-pointer flex items-center gap-1 shadow-sm"
                     >
-                      {editingProdId ? 'Update Suit Entry' : 'Publish & Broadcast Suit'}
+                      {editingProdId ? 'Save Specs Updates' : 'Add Suit to Store Record'}
                     </button>
                   </div>
                 </form>
               )}
 
-              {/* Products table list view */}
-              <div className="border border-gray-100 rounded-xl overflow-hidden shadow-3xs text-xs">
-                <div className="bg-stone-50 px-4 py-3 border-b border-gray-100 grid grid-cols-12 font-serif font-bold text-gray-700">
-                  <div className="col-span-6">Suit Title & Collection</div>
-                  <div className="col-span-3">Category Tag</div>
-                  <div className="col-span-2 text-right">Price</div>
-                  <div className="col-span-1 text-center">Delete</div>
-                </div>
-                <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto pr-1 no-scrollbar bg-[white]">
-                  {products.map(prod => {
-                    const linkedCol = collections.find(c => c.id === prod.collectionId);
-                    return (
-                      <div
-                        key={prod.id}
-                        className="px-4 py-3 grid grid-cols-12 items-center hover:bg-[#faf9f6]/30 transition-colors animate-fade-in"
+              {/* PRODUCT FILTERING INDEX & SEARCHABLE CATALOG LIST */}
+              <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-3xs space-y-4">
+                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-b pb-4">
+                  <div className="space-y-1">
+                    <span className="font-serif font-bold text-sm text-gray-850 block">Search Product Inventory Ledger ({products.length} Items)</span>
+                    <p className="text-[10px] text-gray-400">Manage and instantly flag products as New Arrivals or Hot Selling on your Homepage.</p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
+                    {/* Filter tabs */}
+                    <button
+                      type="button"
+                      onClick={() => setAdminProductFilterType('all')}
+                      className={`px-3 py-1.5 rounded text-[10px] font-bold tracking-tight uppercase border transition-all ${
+                        adminProductFilterType === 'all'
+                          ? 'bg-[#1e152a] text-white border-[#1e152a]'
+                          : 'bg-stone-50 text-gray-500 border-gray-200 hover:bg-stone-100'
+                      }`}
+                    >
+                      All ({products.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminProductFilterType('newArrivals')}
+                      className={`px-3 py-1.5 rounded text-[10px] font-bold tracking-tight uppercase border transition-all ${
+                        adminProductFilterType === 'newArrivals'
+                          ? 'bg-amber-600 text-white border-amber-600'
+                          : 'bg-stone-50 text-amber-700 border-gray-200 hover:bg-amber-50'
+                      }`}
+                    >
+                      🚀 New Arrivals ({products.filter(p => p.isNewArrival).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminProductFilterType('hotSelling')}
+                      className={`px-3 py-1.5 rounded text-[10px] font-bold tracking-tight uppercase border transition-all ${
+                        adminProductFilterType === 'hotSelling'
+                          ? 'bg-red-650 text-white border-red-650 bg-red-600'
+                          : 'bg-stone-50 text-red-700 border-gray-200 hover:bg-red-50'
+                      }`}
+                    >
+                      🔥 Hot Selling ({products.filter(p => p.isHotSelling).length})
+                    </button>
+                  </div>
+
+                  {/* Quick catalog search input */}
+                  <div className="relative w-full sm:w-64 shrink-0">
+                    <input
+                      type="text"
+                      id="inventory-catalog-search"
+                      value={adminProductSearch}
+                      onChange={(e) => setAdminProductSearch(e.target.value)}
+                      placeholder="Search title, category, colors..."
+                      className="w-full px-3 py-2 text-xs bg-stone-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1e152a]"
+                    />
+                    {adminProductSearch && (
+                      <button
+                        onClick={() => setAdminProductSearch('')}
+                        className="absolute right-2.5 top-2 text-gray-400 hover:text-black text-xs font-mono"
                       >
-                        <div className="col-span-6 flex gap-3 items-center min-w-0 pr-2">
-                          <img
-                            src={prod.images[0] || 'https://picsum.photos/seed/p/100/100'}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            className="w-9 h-12 rounded object-cover flex-none bg-gray-50 border"
-                          />
-                          <div className="truncate">
-                            <strong className="text-gray-800 truncate block text-sm leading-tight hover:text-[#c5a880] transition-colors">{prod.name}</strong>
-                            <span className="text-[10px] text-gray-400 font-semibold block mt-1 tracking-wide uppercase">
-                              Linked: {linkedCol?.name || 'Unlinked'}
-                            </span>
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="divide-y divide-stone-100 border border-stone-200 rounded-lg overflow-hidden">
+                  {(() => {
+                    const filteredList = products.filter(prod => {
+                      if (adminProductSearch.trim() !== '') {
+                        const qWords = adminProductSearch.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                        const titleWords = prod.name.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                        const descWords = (prod.description || '').toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                        const tags = [prod.category, prod.id, ...(prod.categories || [])];
+                        
+                        const matchesQuery = qWords.some(qw => {
+                          const titleMatch = titleWords.some(tw => tw.includes(qw));
+                          const descMatch = descWords.some(dw => dw.includes(qw));
+                          const tagMatch = tags.some(t => t.toLowerCase().includes(qw));
+                          return titleMatch || descMatch || tagMatch;
+                        });
+                        
+                        if (!matchesQuery) return false;
+                      }
+                      
+                      if (adminProductFilterType === 'newArrivals') {
+                        return prod.isNewArrival;
+                      }
+                      if (adminProductFilterType === 'hotSelling') {
+                        return prod.isHotSelling;
+                      }
+                      return true;
+                    });
+
+                    if (filteredList.length === 0) {
+                      return (
+                        <div className="p-12 text-center text-gray-400 italic text-xs bg-stone-50/50">
+                          Matches matching current search and filters not found in store register.
+                        </div>
+                      );
+                    }
+
+                    return filteredList.map((prod) => {
+                      const linkedCatsStr = [prod.category, ...(prod.categories || [])]
+                        .filter((val, i, self) => val && self.indexOf(val) === i)
+                        .join(', ');
+                      const linkedColsStr = [prod.collectionId, ...(prod.collectionIds || [])]
+                        .filter((val, i, self) => val && self.indexOf(val) === i)
+                        .map(id => collections.find(c => c.id === id)?.name || id)
+                        .join(', ');
+
+                      return (
+                        <div
+                          key={prod.id}
+                          className="inventory-item-row p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white hover:bg-stone-50/50 transition-all text-left"
+                        >
+                          <div className="flex gap-3 items-center min-w-0">
+                            {/* Photo Thumbnail */}
+                            <div className="w-12 h-16 rounded overflow-hidden bg-stone-50 border border-stone-200 shrink-0 relative">
+                              <img src={prod.images[0] || 'https://picsum.photos/seed/fabric/100/100'} alt={prod.name} referrerPolicy="no-referrer" className="w-full h-full object-cover object-top" />
+                              {prod.images.length > 1 && (
+                                <span className="absolute bottom-0.5 right-0.5 bg-black/75 text-[8px] text-white font-mono px-1 rounded-sm scale-90">
+                                  {prod.images.length}P
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="space-y-1 min-w-0 text-left w-full">
+                              <div className="flex flex-wrap gap-1.5 items-center">
+                                <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-sm shrink-0 ${
+                                  prod.isLadiesSuit ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-green-50 text-green-700 border border-green-100'
+                                }`}>
+                                  {prod.isLadiesSuit ? '👗 LADIES' : '👔 GENTS'}
+                                </span>
+                                
+                                {prod.isOnSale && (
+                                  <span className="bg-red-50 text-red-700 border border-red-100 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-sm shrink-0">
+                                    SALE
+                                  </span>
+                                )}
+
+                                {prod.promoTag && (
+                                  <span className="bg-[#1e152a] text-[#c5a880] text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-sm shrink-0">
+                                    {prod.promoTag}
+                                  </span>
+                                )}
+                              </div>
+
+                              <h5 className="font-serif font-bold text-gray-800 text-xs truncate max-w-xs sm:max-w-md">{prod.name}</h5>
+                              
+                              <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-gray-400 font-mono">
+                                <span>Cats: <strong className="text-gray-600">{linkedCatsStr || 'None'}</strong></span>
+                                <span>•</span>
+                                <span>Cols: <strong className="text-gray-700">{linkedColsStr || 'None'}</strong></span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3.5 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-2 md:pt-0 shrink-0">
+                            {/* Instant Status Badges Manager */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onEditProduct({
+                                    ...prod,
+                                    isNewArrival: !prod.isNewArrival
+                                  });
+                                }}
+                                className={`text-[9.5px] font-semibold uppercase px-2 py-1 rounded transition-all flex items-center gap-1 cursor-pointer border ${
+                                  prod.isNewArrival
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                                    : 'bg-white text-gray-400 border-gray-200 hover:bg-stone-50 hover:text-gray-700'
+                                }`}
+                                title="Click to Toggle New Arrival flag"
+                              >
+                                <span>🚀</span>
+                                <span>New {prod.isNewArrival ? 'Yes' : 'No'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onEditProduct({
+                                    ...prod,
+                                    isHotSelling: !prod.isHotSelling
+                                  });
+                                }}
+                                className={`text-[9.5px] font-semibold uppercase px-2 py-1 rounded transition-all flex items-center gap-1 cursor-pointer border ${
+                                  prod.isHotSelling
+                                    ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                                    : 'bg-white text-gray-400 border-gray-200 hover:bg-stone-50 hover:text-gray-700'
+                                }`}
+                                title="Click to Toggle Hot Selling flag"
+                              >
+                                <span>🔥</span>
+                                <span>Hot {prod.isHotSelling ? 'Yes' : 'No'}</span>
+                              </button>
+                            </div>
+
+                            {/* Price Tag values */}
+                            <div className="text-right shrink-0">
+                              {prod.isOnSale && prod.originalPrice ? (
+                                <div className="flex flex-col items-end">
+                                  <span className="text-red-650 font-extrabold text-xs">{formatPKR(prod.price)}</span>
+                                  <span className="text-gray-400 line-through text-[10px]">{formatPKR(prod.originalPrice)}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-900 font-extrabold text-xs">{formatPKR(prod.price)}</span>
+                              )}
+                            </div>
+
+                            {/* Controls */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={() => {
+                                  startEditProduct(prod);
+                                  window.scrollTo({ top: 300, behavior: 'smooth' });
+                                }}
+                                className="p-1.5 border border-stone-200 hover:border-yellow-400 hover:bg-yellow-50/20 text-stone-600 hover:text-black rounded transition-all cursor-pointer"
+                                title="Edit specifications"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const key = 'delete-prod-' + prod.id;
+                                  if (activeConfirmKey === key) {
+                                    onDeleteProduct(prod.id);
+                                    setActiveConfirmKey(null);
+                                  } else {
+                                    setActiveConfirmKey(key);
+                                    setTimeout(() => {
+                                      setActiveConfirmKey(null);
+                                    }, 5000); // 5 sec fallback reset
+                                  }
+                                }}
+                                className={`p-1.5 rounded transition-all cursor-pointer ${
+                                  activeConfirmKey === 'delete-prod-' + prod.id
+                                    ? 'text-red-600 bg-red-50 hover:bg-red-100 animate-pulse font-extrabold text-[9px]'
+                                    : 'text-gray-400 hover:text-red-600 border border-stone-200'
+                                }`}
+                                title={activeConfirmKey === 'delete-prod-' + prod.id ? "Click again to confirm" : "Delete product"}
+                              >
+                                {activeConfirmKey === 'delete-prod-' + prod.id ? 'TAP COMFIRM' : <Trash2 size={12} />}
+                              </button>
+                            </div>
                           </div>
                         </div>
-
-                        <div className="col-span-3 text-gray-500 font-semibold truncate capitalize">
-                          {prod.category}
-                        </div>
-
-                        <div className="col-span-2 text-right font-bold text-[#1e152a] font-sans">
-                          {formatPKR(prod.price)}
-                        </div>
-
-                        <div className="col-span-1 flex gap-1 justify-center">
-                          <button
-                            onClick={() => startEditProduct(prod)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 rounded transition-colors cursor-pointer"
-                            title="Edit"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              const key = 'delete-prod-' + prod.id;
-                              if (activeConfirmKey === key) {
-                                onDeleteProduct(prod.id);
-                                setActiveConfirmKey(null);
-                              } else {
-                                setActiveConfirmKey(key);
-                                setTimeout(() => setActiveConfirmKey(null), 4000);
-                              }
-                            }}
-                            className={`p-1.5 rounded transition-all cursor-pointer ${
-                              activeConfirmKey === 'delete-prod-' + prod.id
-                                ? 'text-red-600 bg-red-50 hover:bg-red-100 animate-pulse'
-                                : 'text-gray-400 hover:text-red-600'
-                            }`}
-                            title={activeConfirmKey === 'delete-prod-' + prod.id ? "Click again to confirm" : "Delete product"}
-                          >
-                            {activeConfirmKey === 'delete-prod-' + prod.id ? (
-                              <span className="text-[9px] font-extrabold tracking-tight px-0.5 uppercase leading-none">TAP TO CONFIRM</span>
-                            ) : (
-                              <Trash2 size={13} />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
-
             </div>
           )}
 
@@ -2300,8 +2679,20 @@ export default function AdminPanel({
                         </label>
                         <p className="text-[9px] text-gray-400 mt-1">If unchecked, this collection hides from headers and storefront grids, but stays fully manageable in admin dashboard linking.</p>
 
-                        <div className="mt-4">
-                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Home Page Setting</label>
+                        <div className="mt-4 space-y-3">
+                          <label className="block text-[10px] font-bold text-[#c5a880] uppercase tracking-wide">Homepage layout & grouping</label>
+                          
+                          <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-100 p-2.5 rounded-lg select-none">
+                            <input
+                              type="checkbox"
+                              checked={colIsCombine}
+                              onChange={(e) => setColIsCombine(e.target.checked)}
+                              className="rounded text-violet-650 focus:ring-violet-400 w-4 h-4 cursor-pointer text-[#1e152a]"
+                            />
+                            <span className="font-semibold text-gray-800">📦 Put under 'Combine Products' section</span>
+                          </label>
+                          <p className="text-[9px] text-gray-400">If enabled, this collection will be grouped in a special "Combine Products" category on the home page circular list/browsing deck.</p>
+
                           <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 p-2.5 rounded-lg select-none">
                             <input
                               type="checkbox"
@@ -2311,7 +2702,39 @@ export default function AdminPanel({
                             />
                             <span className="font-semibold text-gray-755">Show Products on Home Page</span>
                           </label>
-                          <p className="text-[9px] text-gray-400 mt-1">If enabled, a dedicated row of unstitched fabrics featured under this collection will dynamically display on the home storefront page.</p>
+                          <p className="text-[9px] text-gray-400">If enabled, unstitched suit fabrics from this collection will display dynamically on the home storefront page.</p>
+
+                          {colShowProductsOnHomepage && (
+                            <div className="p-3 bg-amber-50/40 border border-amber-200/50 rounded-lg space-y-2 animate-fade-in">
+                              <label className="block text-[9px] font-bold text-amber-700 uppercase tracking-wider">
+                                Select Homepage Layout Style
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setColHomepageLayoutStyle('grid')}
+                                  className={`py-1.5 px-2.5 rounded border text-[10px] font-bold tracking-tight transition-all uppercase ${
+                                    colHomepageLayoutStyle === 'grid'
+                                      ? 'bg-amber-655 text-white border-amber-600 bg-[#c5a880]'
+                                      : 'bg-white text-gray-650 border-gray-200 hover:bg-stone-50'
+                                  }`}
+                                >
+                                  🔳 Small Grid View
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setColHomepageLayoutStyle('carousel')}
+                                  className={`py-1.5 px-2.5 rounded border text-[10px] font-bold tracking-tight transition-all uppercase ${
+                                    colHomepageLayoutStyle === 'carousel'
+                                      ? 'bg-amber-655 text-white border-amber-600 bg-[#c5a880]'
+                                      : 'bg-white text-gray-650 border-gray-200 hover:bg-stone-50'
+                                  }`}
+                                >
+                                  ↔️ Horizontally Scrolling Carousel
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 

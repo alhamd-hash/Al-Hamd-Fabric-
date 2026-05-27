@@ -704,12 +704,23 @@ export default function App() {
     // Filter by search queries
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(q) || 
-        p.category.toLowerCase().includes(q) || 
-        p.shortDetails.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q)
-      );
+      const queryWords = q.split(/\s+/).filter(w => w.length > 0);
+      
+      result = result.filter(p => {
+        const titleWords = p.name.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+        
+        // Match if ANY query word matches or is a substring of ANY word in the product's title
+        const matchesTitleWord = queryWords.some(qw => 
+          titleWords.some(tw => tw.includes(qw))
+        );
+        
+        // Or if the queries match category, short details, or text elements
+        const matchesCategory = queryWords.some(qw => p.category.toLowerCase().includes(qw));
+        const matchesDescription = queryWords.some(qw => p.description.toLowerCase().includes(qw));
+        const matchesShortDetails = queryWords.some(qw => p.shortDetails.toLowerCase().includes(qw));
+
+        return matchesTitleWord || matchesCategory || matchesDescription || matchesShortDetails;
+      });
     }
 
     return result;
@@ -941,7 +952,7 @@ export default function App() {
           /* VIEW 6: CHOSEN DEDICATED COLLECTION PAGE (Circular Collections Deep-Link) */
           (() => {
             const col = collections.find(c => c.id === selectedCollectionId);
-            const baseProducts = products.filter(p => p.collectionId === selectedCollectionId);
+            const baseProducts = products.filter(p => p.collectionId === selectedCollectionId || p.collectionIds?.includes(selectedCollectionId));
             
             // Resolve linked categories
             const linkedCats = col && col.linkedCategoryIds
@@ -950,7 +961,7 @@ export default function App() {
               
             // If the user picked a specific linked category, filter products by it. Else, show all inside this collection.
             const displayedProducts = collectionCategoryFilter
-              ? baseProducts.filter(p => p.category.toLowerCase().trim() === collectionCategoryFilter.toLowerCase().trim())
+              ? baseProducts.filter(p => p.category.toLowerCase().trim() === collectionCategoryFilter.toLowerCase().trim() || p.categories?.some(c => c.toLowerCase().trim() === collectionCategoryFilter.toLowerCase().trim()))
               : baseProducts;
             
             return (
@@ -1069,7 +1080,7 @@ export default function App() {
         ) : currentView === 'category' && selectedCategoryName ? (
           /* VIEW 7: CATEGORY VIEW SCREEN */
           (() => {
-            const catProducts = products.filter(p => p.category.toLowerCase().trim() === selectedCategoryName.toLowerCase().trim());
+            const catProducts = products.filter(p => p.category.toLowerCase().trim() === selectedCategoryName.toLowerCase().trim() || p.categories?.some(c => c.toLowerCase().trim() === selectedCategoryName.toLowerCase().trim()));
             return (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8 animate-fade-in" id="category-scroller-stage">
                 <div className="flex items-center justify-between border-b pb-3.5 border-[#e1d9cd]">
@@ -1170,7 +1181,7 @@ export default function App() {
                       Gents Collections
                     </span>
                     <div className="flex gap-4 sm:gap-6 py-2 overflow-x-auto no-scrollbar scroll-smooth">
-                      {collections.filter(col => col.isGents && col.showInNavbar !== false).map((col) => (
+                      {collections.filter(col => col.isGents && !col.isCombine && col.showInNavbar !== false).map((col) => (
                         <div
                           key={col.id}
                           onClick={() => handleNavigation('collection', col.id)}
@@ -1199,7 +1210,7 @@ export default function App() {
                       Ladies Collections
                     </span>
                     <div className="flex gap-4 sm:gap-6 py-2 overflow-x-auto no-scrollbar scroll-smooth">
-                      {collections.filter(col => !col.isGents && col.showInNavbar !== false).map((col) => (
+                      {collections.filter(col => !col.isGents && !col.isCombine && col.showInNavbar !== false).map((col) => (
                         <div
                           key={col.id}
                           onClick={() => handleNavigation('collection', col.id)}
@@ -1221,6 +1232,37 @@ export default function App() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Combine Products Collections Row */}
+                  {collections.some(col => col.isCombine && col.showInNavbar !== false) && (
+                    <div className="space-y-3">
+                      <span className="text-xs font-extrabold text-[#c5a880] uppercase tracking-widest block border-l-2 border-[#c5a880] pl-2.5">
+                        📦 Combine Products
+                      </span>
+                      <div className="flex gap-4 sm:gap-6 py-2 overflow-x-auto no-scrollbar scroll-smooth">
+                        {collections.filter(col => col.isCombine && col.showInNavbar !== false).map((col) => (
+                          <div
+                            key={col.id}
+                            onClick={() => handleNavigation('collection', col.id)}
+                            className="flex-none flex flex-col items-center gap-3.5 cursor-pointer group text-center"
+                            id={`circular-col-link-${col.id}`}
+                          >
+                            <div className="relative w-23 h-23 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-transparent group-hover:border-[#c5a880] group-hover:scale-105 transition-all duration-300 shadow-xs bg-[#faf9f6]">
+                              <img
+                                src={col.image}
+                                alt={col.name}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover object-top"
+                              />
+                            </div>
+                            <span className="font-serif text-xs font-bold text-gray-800 tracking-wide line-clamp-1 group-hover:text-[#c5a880] transition-colors max-w-[100px] sm:max-w-[120px]">
+                              {col.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 {/* 3. NEW ARRIVALS: HORIZONTALLY SCROLLABLE PRODUCT CARDS */}
@@ -1294,8 +1336,10 @@ export default function App() {
 
                 {/* DYNAMIC COLLECTIONS SECTIONS (Show on Homepage Option) */}
                 {collections.filter(col => col.showProductsOnHomepage).map(col => {
-                  const colProducts = products.filter(p => p.collectionId === col.id);
+                  const colProducts = products.filter(p => p.collectionId === col.id || p.collectionIds?.includes(col.id));
                   if (colProducts.length === 0) return null;
+                  const isCarousel = col.homepageLayoutStyle === 'carousel';
+
                   return (
                     <section key={col.id} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-6" id={`col-homepage-${col.id}`}>
                       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
@@ -1315,26 +1359,42 @@ export default function App() {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
-                        {colProducts.slice(0, 10).map(prod => (
-                          <ProductCard
-                            key={prod.id}
-                            product={prod}
-                            layout="compact-grid"
-                            onViewDetails={(id) => setSelectedProductId(id)}
-                            onAddToCart={handleAddToCart}
-                            isWishlisted={wishlist.includes(prod.id)}
-                            onToggleWishlist={handleToggleWishlist}
-                          />
-                        ))}
-                      </div>
+                      {isCarousel ? (
+                        <div className="flex gap-4 sm:gap-6 py-3 overflow-x-auto no-scrollbar scroll-smooth">
+                          {colProducts.slice(0, 10).map(prod => (
+                            <ProductCard
+                              key={prod.id}
+                              product={prod}
+                              layout="large-horizontal"
+                              onViewDetails={(id) => setSelectedProductId(id)}
+                              onAddToCart={handleAddToCart}
+                              isWishlisted={wishlist.includes(prod.id)}
+                              onToggleWishlist={handleToggleWishlist}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
+                          {colProducts.slice(0, 10).map(prod => (
+                            <ProductCard
+                              key={prod.id}
+                              product={prod}
+                              layout="compact-grid"
+                              onViewDetails={(id) => setSelectedProductId(id)}
+                              onAddToCart={handleAddToCart}
+                              isWishlisted={wishlist.includes(prod.id)}
+                              onToggleWishlist={handleToggleWishlist}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </section>
                   );
                 })}
 
                 {/* DYNAMIC CATEGORIES SECTIONS (Show on Homepage Option) */}
                 {(categories || []).filter(cat => cat.showProductsOnHomepage).map(cat => {
-                  const catProducts = products.filter(p => p.category.toLowerCase().trim() === cat.name.toLowerCase().trim());
+                  const catProducts = products.filter(p => p.category.toLowerCase().trim() === cat.name.toLowerCase().trim() || p.categories?.some(c => c.toLowerCase().trim() === cat.name.toLowerCase().trim()));
                   if (catProducts.length === 0) return null;
                   return (
                     <section key={cat.id} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-6" id={`cat-homepage-${cat.id}`}>

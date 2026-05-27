@@ -17,12 +17,17 @@ export interface Product {
   images: string[];
   category: string;
   collectionId: string;
+  collectionIds?: string[];
+  categories?: string[];
   specifications: Record<string, string>;
   isLadiesSuit?: boolean;
   ladiesSuitInfo?: LadiesSuitInfo;
   isNewArrival: boolean;
   isHotSelling: boolean;
   rating: number;
+  isOnSale?: boolean;
+  originalPrice?: number;
+  promoTag?: string;
 }
 
 export interface Collection {
@@ -35,6 +40,8 @@ export interface Collection {
   showInNavbar?: boolean;
   linkedCategoryIds?: string[];
   showProductsOnHomepage?: boolean;
+  homepageLayoutStyle?: 'grid' | 'carousel';
+  isCombine?: boolean;
 }
 
 export interface OrderItem {

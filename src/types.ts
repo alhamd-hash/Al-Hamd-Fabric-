@@ -10,6 +10,8 @@ export interface LadiesSuitInfo {
 
 export interface Product {
   id: string;
+  code?: string; // Optional custom code
+  inventory?: number; // Number of unstitched suit pieces/cut inventory available
   name: string;
   shortDetails: string;
   description: string;
@@ -97,7 +99,7 @@ export interface HomeBanner {
   subtitle: string;
   ctaText: string;
   image: string;
-  targetView: 'home' | 'collection' | 'category';
+  targetView: 'home' | 'collection' | 'category' | 'product';
   targetPayload: string;
   badge: string;
   isActive: boolean;

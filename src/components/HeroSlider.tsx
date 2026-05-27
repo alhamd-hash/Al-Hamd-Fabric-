@@ -8,7 +8,7 @@ interface HeroSlide {
   subtitle: string;
   ctaText: string;
   image: string;
-  targetView: 'collection' | 'category' | 'home';
+  targetView: 'collection' | 'category' | 'home' | 'product';
   targetPayload: string;
   badge: string;
 }
@@ -57,7 +57,7 @@ const HERO_SLIDES: HeroSlide[] = [
 ];
 
 interface HeroSliderProps {
-  onNavigate: (view: 'home' | 'collection' | 'category', payload?: string) => void;
+  onNavigate: (view: 'home' | 'collection' | 'category' | 'product', payload?: string) => void;
   slides?: HomeBanner[];
 }
 

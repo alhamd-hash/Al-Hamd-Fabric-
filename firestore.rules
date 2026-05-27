@@ -109,7 +109,7 @@ service cloud.firestore {
         incoming().subtitle is string && incoming().subtitle.size() <= 1000 &&
         incoming().ctaText is string && incoming().ctaText.size() <= 100 &&
         incoming().image is string && incoming().image.size() <= 1500000 &&
-        incoming().targetView is string && incoming().targetView in ['home', 'collection', 'category'] &&
+        incoming().targetView is string && incoming().targetView in ['home', 'collection', 'category', 'product'] &&
         incoming().targetPayload is string && incoming().targetPayload.size() <= 200 &&
         incoming().badge is string && incoming().badge.size() <= 100 &&
         incoming().isActive is bool &&

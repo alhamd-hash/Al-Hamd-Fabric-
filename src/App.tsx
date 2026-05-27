@@ -333,22 +333,28 @@ export default function App() {
   };
 
   // Safe navigation trigger helper
-  const handleNavigation = (view: typeof currentView, payload?: string) => {
-    setCurrentView(view);
+  const handleNavigation = (view: typeof currentView | 'product', payload?: string) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Always reset product details view when navigating anywhere
     setSelectedProductId(null);
 
-    if (view === 'collection' && payload) {
-      setSelectedCollectionId(payload);
-      setCollectionCategoryFilter(null);
-    } else if (view === 'category' && payload) {
-      setSelectedCategoryName(payload);
-    } else if (view === 'home') {
-      setSelectedCollectionId(null);
-      setSelectedCategoryName(null);
-      setCollectionCategoryFilter(null);
+    if (view === 'product') {
+      if (payload) {
+        setSelectedProductId(payload);
+      }
+    } else {
+      setCurrentView(view as any);
+      if (view === 'collection' && payload) {
+        setSelectedCollectionId(payload);
+        setCollectionCategoryFilter(null);
+      } else if (view === 'category' && payload) {
+        setSelectedCategoryName(payload);
+      } else if (view === 'home') {
+        setSelectedCollectionId(null);
+        setSelectedCategoryName(null);
+        setCollectionCategoryFilter(null);
+      }
     }
   };
 

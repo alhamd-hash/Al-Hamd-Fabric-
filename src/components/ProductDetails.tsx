@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Shield, RefreshCw, ChevronLeft, Calendar, User, MessageSquare, Plus, ShoppingCart, Send, Truck } from 'lucide-react';
+import { Star, Shield, RefreshCw, ChevronLeft, Calendar, User, MessageSquare, Plus, ShoppingCart, Send, Truck, Calculator } from 'lucide-react';
 import { Product, Review } from '../types';
 import { formatPKR } from '../utils';
 
@@ -26,6 +26,63 @@ export default function ProductDetails({
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSuccessMessage, setReviewSuccessMessage] = useState('');
+
+  // Inventory & Fabric Requirement Calculator States
+  const [calcSuitType, setCalcSuitType] = useState<'3pc' | '2pc' | 'shirt' | 'custom'>(product.isLadiesSuit ? '3pc' : '2pc');
+  const [calcSuitsQty, setCalcSuitsQty] = useState(1);
+  const [customMeters, setCustomMeters] = useState(8.0);
+
+  // Calculated values based on type
+  const getRequiredMetersPerSuit = () => {
+    if (calcSuitType === '3pc') return 8.0; // standard 3pc suit is 8 meters total
+    if (calcSuitType === '2pc') return 5.5; // standard 2pc suit is 5.5 meters
+    if (calcSuitType === 'shirt') return 3.0; // single shirt piece is 3 meters
+    return customMeters;
+  };
+
+  const totalCalculatedMeters = getRequiredMetersPerSuit() * calcSuitsQty;
+  const totalCalculatedCost = product.price * calcSuitsQty;
+
+  const handleWhatsAppInquiry = (customMsgText?: string) => {
+    const productCode = product.code || 'N/A';
+    const messageText = customMsgText || `Assalam-o-Alaikum Al-Hamd Fabrics! 
+I am interested in inquiring about this product:
+
+Product Name: ${product.name}
+Product Code: ${productCode}
+Price: ${formatPKR(product.price)}
+
+Is this item currently available in stock? Please guide me. Thank you!`;
+    
+    const encodedText = encodeURIComponent(messageText);
+    const whatsappUrl = `https://wa.me/923053131133?text=${encodedText}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleWhatsAppCalculatorInquiry = () => {
+    const productCode = product.code || 'N/A';
+    const suitTypeLabel = 
+      calcSuitType === '3pc' ? '3-Piece Suit (8.0 Meter Cut)' :
+      calcSuitType === '2pc' ? '2-Piece Suit (5.5 Meter Cut)' :
+      calcSuitType === 'shirt' ? 'Shirt Piece (3.0 Meter Cut)' : `Custom Sizing (${customMeters} Meter Cut)`;
+
+    const msg = `Assalam-o-Alaikum Al-Hamd Fabrics! 
+I used your Inventory Calculator for this product:
+
+Product Name: ${product.name}
+Product Code: ${productCode}
+Price per Suit: ${formatPKR(product.price)}
+
+-----------------------------
+Estimated Cut: ${suitTypeLabel}
+Total Quantity: ${calcSuitsQty} Suit(s)
+Total Estimated Yardage: ${totalCalculatedMeters.toFixed(1)} Meters
+Total Calculated Cost: ${formatPKR(totalCalculatedCost)}
+-----------------------------
+
+Please let me know if you have this yardage available so I can proceed with the purchase. Thank you!`;
+    handleWhatsAppInquiry(msg);
+  };
 
   // Get only approved reviews for this product
   const approvedReviews = allReviews.filter(
@@ -111,13 +168,19 @@ export default function ProductDetails({
         {/* Right Column: Key purchase components (Grid-Columns: 7) */}
         <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
           <div>
-            <span className="text-xs font-bold text-[#c5a880] uppercase tracking-widest block mb-2">
-              {product.category}
-            </span>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-xs font-bold text-[#c5a880] uppercase tracking-widest">
+                {product.category}
+              </span>
+              <span className="text-gray-300 text-xs">•</span>
+              <span className="bg-stone-50 text-[#1e152a] text-[10.5px] font-mono font-bold px-2.5 py-1 rounded border border-stone-150">
+                Code: {product.code || 'ALH-N/A'}
+              </span>
+            </div>
             <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl text-[#1e152a] font-extrabold leading-tight tracking-tight">
               {product.name}
             </h1>
-            <p className="text-gray-500 text-sm mt-2 leading-relaxed italic">
+            <p className="text-gray-500 text-xs mt-1.5 leading-relaxed italic">
               {product.shortDetails || 'Premium high-end dress fabric with timeless details.'}
             </p>
 
@@ -147,10 +210,17 @@ export default function ProductDetails({
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-emerald-600 font-bold text-xs bg-emerald-50 px-2.5 py-1.5 rounded-full border border-emerald-100 flex items-center gap-1.5 justify-end">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  In Stock (Available)
-                </span>
+                {product.inventory !== undefined ? (
+                  <span className="text-emerald-700 font-extrabold text-xs bg-emerald-50 px-2.5 py-1.5 rounded-full border border-emerald-100 flex items-center gap-1.5 justify-end">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Stock: {product.inventory} Pcs Available
+                  </span>
+                ) : (
+                  <span className="text-emerald-600 font-bold text-xs bg-emerald-50 px-2.5 py-1.5 rounded-full border border-emerald-100 flex items-center gap-1.5 justify-end">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    In Stock (Available)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -222,6 +292,7 @@ export default function ProductDetails({
                 ))}
               </div>
             </div>
+
           </div>
 
           {/* Checkout triggers and actions container */}
@@ -272,6 +343,15 @@ export default function ProductDetails({
                 🔥 Order Now (Direct Checkout)
               </button>
             </div>
+
+            {/* Direct WhatsApp Product Inquiry CTA */}
+            <button
+              onClick={() => handleWhatsAppInquiry()}
+              className="w-full py-3.5 px-6 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold uppercase text-xs tracking-wider shadow-md active:scale-98 transition-all flex items-center justify-center gap-2.5 cursor-pointer rounded"
+            >
+              <span className="text-base">💬</span>
+              WhatsApp par Product Inquiry kryn (Code: {product.code || 'ALH-N/A'})
+            </button>
 
             {/* Guaranteed Trust badge icons */}
             <div className="grid grid-cols-3 gap-3 pt-4 text-center">

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Lock, Settings, ShoppingBag, MessageSquare, Plus, Trash2, Edit2, Filter,
-  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload
+  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload, Calculator
 } from 'lucide-react';
 import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from '../types';
 import { formatPKR, compressImage } from '../utils';
@@ -108,8 +108,10 @@ export default function AdminPanel({
   // --- New Product Form States ---
   const [showProdForm, setShowProdForm] = useState(false);
   const [editingProdId, setEditingProdId] = useState<string | null>(null);
+  const [prodCode, setProdCode] = useState('');
   const [prodName, setProdName] = useState('');
   const [prodShort, setProdShort] = useState('');
+  const [prodInventory, setProdInventory] = useState<number | ''>('');
   const [prodDesc, setProdDesc] = useState('');
   const [prodPrice, setProdPrice] = useState(0);
   const [prodCategory, setProdCategory] = useState('');
@@ -153,15 +155,24 @@ export default function AdminPanel({
   const [bannerSubtitle, setBannerSubtitle] = useState('');
   const [bannerCtaText, setBannerCtaText] = useState('Shop Collection');
   const [bannerImage, setBannerImage] = useState('');
-  const [bannerTargetView, setBannerTargetView] = useState<'home' | 'collection' | 'category'>('home');
+  const [bannerTargetView, setBannerTargetView] = useState<'home' | 'collection' | 'category' | 'product'>('home');
   const [bannerTargetPayload, setBannerTargetPayload] = useState('');
   const [bannerBadge, setBannerBadge] = useState('EID SPECIAL');
   const [bannerIsActive, setBannerIsActive] = useState(true);
   const [bannerOrder, setBannerOrder] = useState(0);
   const [bannerImageError, setBannerImageError] = useState('');
 
-  // Dual levels dropdown state
+  // Dual levels dropdown state (legacy, kept for references)
   const [bannerLinkType, setBannerLinkType] = useState<'gents-collection' | 'gents-category' | 'ladies-collection' | 'ladies-category' | 'none'>('none');
+  
+  // --- Enhanced Guided Redirection Wizard States ---
+  const [bannerHasLink, setBannerHasLink] = useState(false);
+  const [bannerLinkTargetType, setBannerLinkTargetType] = useState<'product' | 'collection' | 'category'>('collection');
+  const [bannerGenderType, setBannerGenderType] = useState<'gents' | 'ladies'>('gents');
+  const [bannerSelectedColId, setBannerSelectedColId] = useState<string>('');
+  const [bannerSelectedCatName, setBannerSelectedCatName] = useState<string>('');
+  const [bannerProductSearchMode, setBannerProductSearchMode] = useState<'gents-collection' | 'gents-category' | 'ladies-collection' | 'ladies-category' | null>(null);
+
   const [bannerIdToDelete, setBannerIdToDelete] = useState<string | null>(null);
   const [activeConfirmKey, setActiveConfirmKey] = useState<string | null>(null);
 
@@ -362,6 +373,8 @@ export default function AdminPanel({
 
     const payload: Product = {
       id: editingProdId || `prod-${Date.now()}`,
+      code: prodCode ? prodCode.trim() : `ALH-${Math.floor(1000 + Math.random() * 9000)}`, // auto assign if empty
+      inventory: prodInventory !== '' ? Number(prodInventory) : undefined,
       name: prodName,
       shortDetails: prodShort || `${specStyle} Premium Collection`,
       description: prodDesc || 'Elegantly tailored traditional unstitched suit fabric with exquisite pattern design details.',
@@ -398,6 +411,8 @@ export default function AdminPanel({
 
     // Reset Form states
     setEditingProdId(null);
+    setProdCode('');
+    setProdInventory('');
     setProdName('');
     setProdShort('');
     setProdDesc('');
@@ -436,6 +451,8 @@ export default function AdminPanel({
 
   const startEditProduct = (prod: Product) => {
     setEditingProdId(prod.id);
+    setProdCode(prod.code || '');
+    setProdInventory(prod.inventory !== undefined ? prod.inventory : '');
     setProdName(prod.name);
     setProdShort(prod.shortDetails);
     setProdDesc(prod.description);
@@ -537,25 +554,58 @@ export default function AdminPanel({
     setBannerOrder(banner.order);
     setBannerImageError('');
 
-    // Dynamically calculate the appropriate banner link type
+    // Dynamically calculate guided step states based on stored targets
     if (banner.targetView === 'home' || !banner.targetView) {
-      setBannerLinkType('none');
+      setBannerHasLink(false);
+      setBannerLinkTargetType('collection');
+      setBannerGenderType('gents');
+      setBannerSelectedColId('');
+      setBannerSelectedCatName('');
+      setBannerProductSearchMode(null);
     } else if (banner.targetView === 'collection') {
+      setBannerHasLink(true);
+      setBannerLinkTargetType('collection');
       const parentCol = collections.find(c => c.id === banner.targetPayload);
       if (parentCol && parentCol.isGents) {
-        setBannerLinkType('gents-collection');
+        setBannerGenderType('gents');
       } else {
-        setBannerLinkType('ladies-collection');
+        setBannerGenderType('ladies');
       }
+      setBannerSelectedColId(banner.targetPayload || '');
     } else if (banner.targetView === 'category') {
-      const isGentsCat = ['Shalwar Kameez', 'Wash & Wear', 'Cotton Suits', 'Casual Wear', 'Premium Suits'].includes(banner.targetPayload);
-      if (isGentsCat) {
-        setBannerLinkType('gents-category');
+      setBannerHasLink(true);
+      setBannerLinkTargetType('category');
+      const matchedCat = categories.find(c => c.name.toLowerCase().trim() === banner.targetPayload.toLowerCase().trim());
+      if (matchedCat && matchedCat.isGents) {
+        setBannerGenderType('gents');
       } else {
-        setBannerLinkType('ladies-category');
+        const isGentsCat = ['Shalwar Kameez', 'Wash & Wear', 'Cotton Suits', 'Casual Wear', 'Premium Suits'].includes(banner.targetPayload);
+        setBannerGenderType(isGentsCat ? 'gents' : 'ladies');
       }
-    } else {
-      setBannerLinkType('none');
+      setBannerSelectedCatName(banner.targetPayload || '');
+    } else if (banner.targetView === 'product') {
+      setBannerHasLink(true);
+      setBannerLinkTargetType('product');
+      const targetProd = products.find(p => p.id === banner.targetPayload);
+      if (targetProd) {
+        if (targetProd.isLadiesSuit) {
+          if (targetProd.collectionId && targetProd.collectionId !== '') {
+            setBannerProductSearchMode('ladies-collection');
+            setBannerSelectedColId(targetProd.collectionId);
+          } else {
+            setBannerProductSearchMode('ladies-category');
+            setBannerSelectedCatName(targetProd.category || '');
+          }
+        } else {
+          if (targetProd.collectionId && targetProd.collectionId !== '') {
+            setBannerProductSearchMode('gents-collection');
+            setBannerSelectedColId(targetProd.collectionId);
+          } else {
+            setBannerProductSearchMode('gents-category');
+            setBannerSelectedCatName(targetProd.category || '');
+          }
+        }
+      }
     }
 
     setShowBannerForm(true);
@@ -574,6 +624,15 @@ export default function AdminPanel({
     setBannerOrder(banners.length);
     setBannerImageError('');
     setBannerLinkType('none');
+
+    // Reset advanced guided steps
+    setBannerHasLink(false);
+    setBannerLinkTargetType('collection');
+    setBannerGenderType('gents');
+    setBannerSelectedColId('');
+    setBannerSelectedCatName('');
+    setBannerProductSearchMode(null);
+
     setShowBannerForm(false);
   };
 
@@ -949,7 +1008,7 @@ export default function AdminPanel({
                           </span>
 
                           <select
-                            value={order.status}
+                            value={order.status || 'Pending'}
                             onChange={(e) => onUpdateOrderStatus(order.id, e.target.value as OrderStatus)}
                             className={`px-2 py-1 font-bold rounded-lg border text-[10px] uppercase shadow-2xs focus:outline-none cursor-pointer ${
                               order.status === 'Delivered' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' :
@@ -1304,7 +1363,7 @@ export default function AdminPanel({
                           <input
                             type="text"
                             placeholder="Or paste direct image URL here..."
-                            value={bannerImage.startsWith('data:image/') ? '' : bannerImage}
+                            value={bannerImage ? (bannerImage.startsWith('data:image/') ? '' : bannerImage) : ''}
                             onChange={(e) => {
                               if (e.target.value.trim()) {
                                 setBannerImage(e.target.value);
@@ -1338,114 +1397,276 @@ export default function AdminPanel({
                       )}
                     </div>
 
-                    {/* Link View Target (Step 1: Selecting the Gender & Category/Collection Sector) */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                        Where does this banner lead to? *
-                      </label>
-                      <select
-                        value={bannerLinkType}
-                        onChange={(e) => {
-                          const val = e.target.value as any;
-                          setBannerLinkType(val);
-                          
-                          if (val === 'none') {
-                            setBannerTargetView('home');
-                            setBannerTargetPayload('');
-                          } else if (val === 'gents-collection') {
-                            setBannerTargetView('collection');
-                            const gentsCols = collections.filter(c => c.isGents);
-                            setBannerTargetPayload(gentsCols.length > 0 ? gentsCols[0].id : '');
-                          } else if (val === 'ladies-collection') {
-                            setBannerTargetView('collection');
-                            const ladiesCols = collections.filter(c => !c.isGents);
-                            setBannerTargetPayload(ladiesCols.length > 0 ? ladiesCols[0].id : '');
-                          } else if (val === 'gents-category') {
-                            setBannerTargetView('category');
-                            setBannerTargetPayload('Cotton Suits');
-                          } else if (val === 'ladies-category') {
-                            setBannerTargetView('category');
-                            setBannerTargetPayload('2 Piece');
-                          }
-                        }}
-                        className="w-full bg-white border border-gray-200 px-3 py-2 rounded font-semibold text-gray-800 cursor-pointer focus:outline-none focus:border-[#c5a880]"
-                      >
-                        <option value="none">✨ Simple Static Banner (No Redirection Link)</option>
-                        <option value="gents-collection">🧔 Gents Collection</option>
-                        <option value="gents-category">👔 Gents Categories</option>
-                        <option value="ladies-collection">👩 Ladies Collection</option>
-                        <option value="ladies-category">👗 Ladies Categories</option>
-                      </select>
-                    </div>
+                     {/* NEW COMPREHENSIVE PATH-BASED GUIDED REDIRECTION BUILDER */}
+                    <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-4">
+                      <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                        <span className="text-xs uppercase font-extrabold text-[#1e152a] tracking-wider flex items-center gap-1.5">
+                          <Sparkles size={12} className="text-[#c5a880]" />
+                          Destination Redirection Link
+                        </span>
+                        
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={bannerHasLink}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setBannerHasLink(checked);
+                              if (!checked) {
+                                setBannerTargetView('home');
+                                setBannerTargetPayload('');
+                              } else {
+                                // Default link view is collection when initialized
+                                setBannerTargetView('collection');
+                                setBannerLinkTargetType('collection');
+                              }
+                            }}
+                            className="rounded accent-[#c5a880] cursor-pointer"
+                          />
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                            Enable Link
+                          </span>
+                        </label>
+                      </div>
 
-                    {/* Link Target Payload (Step 2: Selecting the exact item from the filtered items) */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                        Select Destination Target *
-                      </label>
-                      
-                      {bannerLinkType === 'none' && (
-                        <input
-                          type="text"
-                          disabled
-                          placeholder="No redirection needed"
-                          value="Informational Banner only"
-                          className="w-full bg-gray-100 border border-gray-150 px-3 py-2 rounded text-gray-400 italic"
-                        />
-                      )}
+                      {bannerHasLink ? (
+                        <div className="space-y-4 animate-fade-in text-xs">
+                          {/* Step 1: Select Redirection Level */}
+                          <div>
+                            <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                              Step 1: What do you want to link on this banner?
+                            </span>
+                            <div className="grid grid-cols-3 gap-2">
+                              {(['collection', 'category', 'product'] as const).map((t) => (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => {
+                                    setBannerLinkTargetType(t);
+                                    setBannerTargetView(t);
+                                    setBannerTargetPayload('');
+                                    setBannerSelectedColId('');
+                                    setBannerSelectedCatName('');
+                                    if (t === 'product') {
+                                      setBannerProductSearchMode('gents-collection');
+                                    }
+                                  }}
+                                  className={`py-2 px-3 border rounded font-semibold text-center uppercase tracking-wider text-[9px] transition-all cursor-pointer ${
+                                    bannerLinkTargetType === t
+                                      ? 'bg-[#1e152a] text-white border-[#1e152a]'
+                                      : 'bg-white hover:bg-stone-100 text-gray-700 border-gray-200'
+                                  }`}
+                                >
+                                  {t === 'collection' && '📂 Collection'}
+                                  {t === 'category' && '🏷️ Category'}
+                                  {t === 'product' && '🛍️ Specific Product'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
 
-                      {bannerLinkType === 'gents-collection' && (
-                        <select
-                          required
-                          value={bannerTargetPayload}
-                          onChange={(e) => setBannerTargetPayload(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
-                        >
-                          <option value="">-- Choose Gents Collection --</option>
-                          {collections.filter(c => c.isGents).map(col => (
-                            <option key={col.id} value={col.id}>{col.name}</option>
-                          ))}
-                        </select>
-                      )}
+                          {/* IF COLLECTION OR CATEGORY */}
+                          {(bannerLinkTargetType === 'collection' || bannerLinkTargetType === 'category') && (
+                            <div className="space-y-3 p-3 bg-white border border-stone-200 rounded-lg">
+                              {/* Step 2(Col/Cat): Select Gender Department */}
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+                                  Step 2: Department Sourcing (Gents or Ladies)?
+                                </span>
+                                <div className="flex gap-2">
+                                  {(['gents', 'ladies'] as const).map((gender) => (
+                                    <button
+                                      key={gender}
+                                      type="button"
+                                      onClick={() => {
+                                        setBannerGenderType(gender);
+                                        setBannerTargetPayload('');
+                                        setBannerSelectedColId('');
+                                        setBannerSelectedCatName('');
+                                      }}
+                                      className={`flex-1 py-1.5 rounded text-[10px] uppercase tracking-wide font-extrabold border transition-all cursor-pointer ${
+                                        bannerGenderType === gender
+                                          ? 'border-[#c5a880] bg-amber-50/50 text-[#9d7e52]'
+                                          : 'border-gray-200 bg-white hover:bg-stone-50 text-gray-400'
+                                      }`}
+                                    >
+                                      {gender === 'gents' ? '🧔 Gents department' : '👩 Ladies department'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
 
-                      {bannerLinkType === 'ladies-collection' && (
-                        <select
-                          required
-                          value={bannerTargetPayload}
-                          onChange={(e) => setBannerTargetPayload(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
-                        >
-                          <option value="">-- Choose Ladies Collection --</option>
-                          {collections.filter(c => !c.isGents).map(col => (
-                            <option key={col.id} value={col.id}>{col.name}</option>
-                          ))}
-                        </select>
-                      )}
+                              {/* Step 3: Choose actual Collection or Category */}
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                                  Step 3: Select the target {bannerLinkTargetType}
+                                </span>
+                                {bannerLinkTargetType === 'collection' ? (
+                                  <select
+                                    required
+                                    value={bannerTargetPayload}
+                                    onChange={(e) => {
+                                      setBannerTargetPayload(e.target.value);
+                                      setBannerSelectedColId(e.target.value);
+                                    }}
+                                    className="w-full bg-stone-50 border border-gray-200 p-2 rounded text-xs text-gray-850 cursor-pointer font-bold focus:outline-none focus:border-[#c5a880]"
+                                  >
+                                    <option value="">-- Click to choose collection --</option>
+                                    {collections
+                                      .filter((c) => (bannerGenderType === 'gents' ? c.isGents : !c.isGents))
+                                      .map((col) => (
+                                        <option key={col.id} value={col.id}>{col.name}</option>
+                                      ))}
+                                  </select>
+                                ) : (
+                                  <select
+                                    required
+                                    value={bannerTargetPayload}
+                                    onChange={(e) => {
+                                      setBannerTargetPayload(e.target.value);
+                                      setBannerSelectedCatName(e.target.value);
+                                    }}
+                                    className="w-full bg-stone-50 border border-gray-200 p-2 rounded text-xs text-gray-850 cursor-pointer font-bold focus:outline-none focus:border-[#c5a880]"
+                                  >
+                                    <option value="">-- Click to choose category --</option>
+                                    {categories
+                                      .filter((c) => (bannerGenderType === 'gents' ? c.isGents : !c.isGents))
+                                      .map((cat) => (
+                                        <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                      ))}
+                                  </select>
+                                )}
+                              </div>
+                            </div>
+                          )}
 
-                      {bannerLinkType === 'gents-category' && (
-                        <select
-                          required
-                          value={bannerTargetPayload}
-                          onChange={(e) => setBannerTargetPayload(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
-                        >
-                          {['Shalwar Kameez', 'Wash & Wear', 'Cotton Suits', 'Casual Wear', 'Premium Suits'].map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                      )}
+                          {/* IF SPECIFIC PRODUCT CHOSEN */}
+                          {bannerLinkTargetType === 'product' && (
+                            <div className="space-y-4 p-3 bg-white border border-stone-200 rounded-lg">
+                              {/* Step 2 (Product): Filter Method */}
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                                  Step 2: Where is this product located?
+                                </span>
+                                <select
+                                  value={bannerProductSearchMode || 'gents-collection'}
+                                  onChange={(e) => {
+                                    const mode = e.target.value as any;
+                                    setBannerProductSearchMode(mode);
+                                    setBannerTargetPayload('');
+                                    setBannerSelectedColId('');
+                                    setBannerSelectedCatName('');
+                                  }}
+                                  className="w-full bg-stone-50 border border-gray-200 p-2 rounded text-[11px] font-bold text-gray-800 cursor-pointer focus:outline-none focus:border-[#c5a880]"
+                                >
+                                  <option value="gents-collection">🧔 Sourced Gents Collection</option>
+                                  <option value="gents-category">👔 Sourced Gents Category</option>
+                                  <option value="ladies-collection">👩 Sourced Ladies Collection</option>
+                                  <option value="ladies-category">👗 Sourced Ladies Category</option>
+                                </select>
+                              </div>
 
-                      {bannerLinkType === 'ladies-category' && (
-                        <select
-                          required
-                          value={bannerTargetPayload}
-                          onChange={(e) => setBannerTargetPayload(e.target.value)}
-                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded cursor-pointer font-medium focus:outline-none focus:border-[#c5a880]"
-                        >
-                          {['2 Piece', '3 Piece', 'Lawn Collection', 'Pret Wear', 'Embroidered'].map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
+                              {/* Step 3 (Product): Choose specific collection or category folder */}
+                              {bannerProductSearchMode && (
+                                <div>
+                                  <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                                    Step 3: Choose Category/Collection Folder
+                                  </span>
+                                  {bannerProductSearchMode.endsWith('collection') ? (
+                                    <select
+                                      value={bannerSelectedColId}
+                                      onChange={(e) => {
+                                        setBannerSelectedColId(e.target.value);
+                                        setBannerTargetPayload(''); // Reset product payload until Step 4 selected!
+                                      }}
+                                      className="w-full bg-stone-50 border border-gray-200 p-2 rounded text-[11px] text-gray-800 cursor-pointer focus:outline-none focus:border-[#c5a880]"
+                                    >
+                                      <option value="">-- Choose target collection --</option>
+                                      {collections
+                                        .filter((c) => bannerProductSearchMode.startsWith('gents') ? c.isGents : !c.isGents)
+                                        .map((col) => (
+                                          <option key={col.id} value={col.id}>{col.name}</option>
+                                        ))}
+                                    </select>
+                                  ) : (
+                                    <select
+                                      value={bannerSelectedCatName}
+                                      onChange={(e) => {
+                                        setBannerSelectedCatName(e.target.value);
+                                        setBannerTargetPayload(''); // Reset product payload until Step 4 selected!
+                                      }}
+                                      className="w-full bg-stone-50 border border-gray-200 p-2 rounded text-[11px] text-gray-800 cursor-pointer focus:outline-none focus:border-[#c5a880]"
+                                    >
+                                      <option value="">-- Choose target category --</option>
+                                      {categories
+                                        .filter((c) => bannerProductSearchMode.startsWith('gents') ? c.isGents : !c.isGents)
+                                        .map((cat) => (
+                                          <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Step 4 (Product): Choose specific Product list */}
+                              {((bannerProductSearchMode?.endsWith('collection') && bannerSelectedColId !== '') ||
+                                (bannerProductSearchMode?.endsWith('category') && bannerSelectedCatName !== '')) && (
+                                <div className="space-y-1">
+                                  <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                    <Check size={11} className="text-emerald-600" />
+                                    Step 4: Select specific unstitched fabric product
+                                  </span>
+                                  {(() => {
+                                    let filteredList = [];
+                                    if (bannerProductSearchMode?.endsWith('collection')) {
+                                      filteredList = products.filter(
+                                        (p) =>
+                                          (bannerProductSearchMode.startsWith('gents') ? !p.isLadiesSuit : p.isLadiesSuit) &&
+                                          (p.collectionId === bannerSelectedColId || p.collectionIds?.includes(bannerSelectedColId))
+                                      );
+                                    } else {
+                                      filteredList = products.filter(
+                                        (p) =>
+                                          (bannerProductSearchMode.startsWith('gents') ? !p.isLadiesSuit : p.isLadiesSuit) &&
+                                          (p.category.toLowerCase().trim() === bannerSelectedCatName.toLowerCase().trim() ||
+                                            p.categories?.some((cat) => cat.toLowerCase().trim() === bannerSelectedCatName.toLowerCase().trim()))
+                                      );
+                                    }
+
+                                    return (
+                                      <select
+                                        required
+                                        value={bannerTargetPayload}
+                                        onChange={(e) => setBannerTargetPayload(e.target.value)}
+                                        className="w-full bg-white border-2 border-[#c5a880] p-2.5 rounded font-bold text-xs text-[#1e152a] cursor-pointer focus:outline-none"
+                                      >
+                                        <option value="">-- select product design --</option>
+                                        {filteredList.map((prod) => (
+                                          <option key={prod.id} value={prod.id}>
+                                            [{prod.code || 'NO-CODE'}] {prod.name} - {formatPKR(prod.price)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {bannerTargetPayload && (
+                            <div className="bg-emerald-50 text-emerald-800 p-2.5 border border-emerald-100 rounded text-[10px] flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                              <span>
+                                REDIRECT PATH ACTIVE: <strong>{bannerTargetView}</strong> → <strong>{bannerTargetPayload}</strong>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-stone-100 border border-stone-200/50 rounded-lg text-[10px] text-stone-400 italic font-medium">
+                          No destination link active. This banner is static and information-only.
+                        </div>
                       )}
                     </div>
 
@@ -1648,6 +1869,8 @@ export default function AdminPanel({
                   <button
                     onClick={() => {
                       setEditingProdId(null);
+                      setProdCode('');
+                      setProdInventory('');
                       setProdName('');
                       setProdShort('');
                       setProdDesc('');
@@ -1734,16 +1957,27 @@ export default function AdminPanel({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Product Title / Name *</label>
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Traditional Embroidered Lawn Suit"
+                        placeholder="e.g. Traditional Embroidered Lawn"
                         value={prodName}
                         onChange={(e) => setProdName(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Product Code *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. ALH-5042"
+                        value={prodCode}
+                        onChange={(e) => setProdCode(e.target.value)}
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-mono"
                       />
                     </div>
 
@@ -1755,19 +1989,29 @@ export default function AdminPanel({
                         placeholder="e.g. 2850"
                         value={prodPrice || ''}
                         onChange={(e) => setProdPrice(Number(e.target.value))}
-                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-semibold"
                       />
                     </div>
 
                     <div className="md:col-span-3">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Short Details (appears as subtitle) *</label>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Short Description / Subtitle <span className="text-gray-400 font-normal">(Optional)</span></label>
                       <input
                         type="text"
-                        required
-                        placeholder="e.g. 3 Piece Unstitched Suit with Silk Dupatta"
+                        placeholder="e.g. Premium 3 Piece Printed Lawn Suit"
                         value={prodShort}
                         onChange={(e) => setProdShort(e.target.value)}
-                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Inventory Value (Pcs) <span className="text-gray-400 font-normal">(Optional)</span></label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 100"
+                        value={prodInventory}
+                        onChange={(e) => setProdInventory(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-mono font-bold"
                       />
                     </div>
                   </div>
@@ -1975,40 +2219,13 @@ export default function AdminPanel({
                   <div className="text-left">
                     <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Detailed Description *</label>
                     <textarea
-                      rows={3}
+                      rows={4}
                       required
-                      placeholder="Explain weave pattern, fabric comfort, size layout, stitch types, or wash rules..."
+                      placeholder="Explain fabric comfort, dimensions, weave pattern, style or other details here..."
                       value={prodDesc}
                       onChange={(e) => setProdDesc(e.target.value)}
-                      className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880]"
+                      className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs"
                     />
-                  </div>
-
-                  {/* Suit Specs Grid parameters */}
-                  <div className="p-4 bg-white/60 border border-gray-200 rounded-lg space-y-3 text-left">
-                    <span className="font-bold block uppercase text-[10px] tracking-wide text-gray-500">Quick Specs Sheet values</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-[9px] text-[#555] font-semibold">Fabric type</label>
-                        <input type="text" placeholder="e.g. Lawn, Karandi, Silk" value={specFabric} onChange={(e) => setSpecFabric(e.target.value)} className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded" />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] text-[#555] font-semibold">Dupatta Spec</label>
-                        <input type="text" placeholder="e.g. Chiffon printed (2.5m)" value={specDupatta} onChange={(e) => setSpecDupatta(e.target.value)} className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded" />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] text-[#555] font-semibold">Shirt fabric</label>
-                        <input type="text" placeholder="e.g. Embroidered (3m)" value={specShirt} onChange={(e) => setSpecShirt(e.target.value)} className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded" />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] text-[#555] font-semibold">Trouser fabric</label>
-                        <input type="text" placeholder="e.g. Dyed Cambric (2.5m)" value={specTrouser} onChange={(e) => setSpecTrouser(e.target.value)} className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded" />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] text-[#555] font-semibold">Style layout</label>
-                        <input type="text" placeholder="e.g. Unstitched 3-piece" value={specStyle} onChange={(e) => setSpecStyle(e.target.value)} className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded" />
-                      </div>
-                    </div>
                   </div>
 
                   {/* Switch trigger specifications */}
@@ -2203,6 +2420,16 @@ export default function AdminPanel({
                                 {prod.promoTag && (
                                   <span className="bg-[#1e152a] text-[#c5a880] text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-sm shrink-0">
                                     {prod.promoTag}
+                                  </span>
+                                )}
+
+                                {prod.inventory !== undefined && (
+                                  <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-sm shrink-0 ${
+                                    prod.inventory > 10
+                                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
+                                      : 'bg-amber-50 text-amber-800 border border-amber-150'
+                                  }`}>
+                                    Stock: {prod.inventory} Pcs
                                   </span>
                                 )}
                               </div>
@@ -2592,7 +2819,7 @@ export default function AdminPanel({
                         <input
                           type="text"
                           placeholder="Or paste direct image URL fallback..."
-                          value={colImage.startsWith('data:') ? '' : colImage}
+                          value={colImage ? (colImage.startsWith('data:') ? '' : colImage) : ''}
                           onChange={(e) => setColImage(e.target.value)}
                           className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none placeholder-gray-350 text-[11px]"
                         />
@@ -2647,7 +2874,7 @@ export default function AdminPanel({
                         <input
                           type="text"
                           placeholder="Or paste direct banner/cover URL fallback..."
-                          value={colBanner.startsWith('data:') ? '' : colBanner}
+                          value={colBanner ? (colBanner.startsWith('data:') ? '' : colBanner) : ''}
                           onChange={(e) => setColBanner(e.target.value)}
                           className="sm:col-span-2 bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none placeholder-gray-350 text-[11px]"
                         />

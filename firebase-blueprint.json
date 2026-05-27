@@ -141,7 +141,7 @@
         },
         "targetView": {
           "type": "string",
-          "enum": ["home", "collection", "category"]
+          "enum": ["home", "collection", "category", "product"]
         },
         "targetPayload": {
           "type": "string",

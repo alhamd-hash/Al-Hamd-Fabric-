@@ -116,6 +116,18 @@ export default function ProductCard({
             <p className="text-gray-500 text-xs line-clamp-2 mt-1 leading-relaxed">
               {product.shortDetails}
             </p>
+            <div className="flex flex-wrap gap-1 items-center mt-1.5">
+              {product.isLadiesSuit && (
+                <span className="inline-block text-[10px] text-gray-500 font-sans border border-gray-100 px-1 py-0.5 rounded-xs bg-[#faf9f6]">
+                  Unstitched 3-Piece
+                </span>
+              )}
+              {product.inventory !== undefined && (
+                <span className="inline-block text-[10px] text-emerald-805 font-bold border border-emerald-100 px-1.5 py-0.5 rounded-xs bg-emerald-50">
+                  Stock: {product.inventory} Pcs
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="pt-2 border-t border-gray-50 flex items-center justify-between">
@@ -220,11 +232,18 @@ export default function ProductCard({
           {product.name}
         </h4>
         
-        {product.isLadiesSuit && (
-          <span className="inline-block text-[10px] text-gray-500 font-sans border border-gray-100 px-1 py-0.5 rounded-sm bg-[#faf9f6]">
-            Unstitched 3-Piece
-          </span>
-        )}
+        <div className="flex flex-wrap gap-1 items-center mt-1">
+          {product.isLadiesSuit && (
+            <span className="inline-block text-[10px] text-gray-500 font-sans border border-gray-100 px-1 py-0.5 rounded-sm bg-[#faf9f6]">
+              Unstitched 3-Piece
+            </span>
+          )}
+          {product.inventory !== undefined && (
+            <span className="inline-block text-[10px] text-emerald-805 font-bold border border-emerald-100 px-1.5 py-0.5 rounded-sm bg-emerald-50">
+              Stock: {product.inventory} Pcs
+            </span>
+          )}
+        </div>
 
         <div className="pt-2 flex items-center justify-between border-t border-gray-50">
           {product.isOnSale && product.originalPrice ? (

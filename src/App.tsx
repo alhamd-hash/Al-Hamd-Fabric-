@@ -82,8 +82,13 @@ export default function App() {
   const [notifications, setNotifications] = useState<NewsletterNotification[]>([]);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
 
-  // Instant bootstrap - disabled blocking preloader screen to load fully interactive layout immediately
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Dynamic premium bootstrap - active spinner ONLY when there's no stored cached products, collections or categories
+  const [isSyncing, setIsSyncing] = useState(() => {
+    const cachedProducts = getStoredProducts();
+    const cachedCollections = getStoredCollections();
+    const cachedCategories = getStoredCategories();
+    return cachedProducts.length === 0 || cachedCollections.length === 0 || cachedCategories.length === 0;
+  });
 
   // Navigation Routing
   const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'checkout' | 'admin' | 'collection' | 'category'>('home');
@@ -113,9 +118,18 @@ export default function App() {
 
   // Initialize data on mount
   useEffect(() => {
-    setProducts(getStoredProducts());
-    setCollections(getStoredCollections());
-    setCategories(getStoredCategories());
+    const cachedProds = getStoredProducts();
+    if (cachedProds && cachedProds.length > 0) {
+      setProducts(cachedProds);
+    }
+    const cachedCols = getStoredCollections();
+    if (cachedCols && cachedCols.length > 0) {
+      setCollections(cachedCols);
+    }
+    const cachedCats = getStoredCategories();
+    if (cachedCats && cachedCats.length > 0) {
+      setCategories(cachedCats);
+    }
     setSubscriptions(getStoredSubscriptions());
 
     // Start with local systems first for instantaneous boot UI

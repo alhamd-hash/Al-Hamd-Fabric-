@@ -169,5 +169,17 @@ service cloud.firestore {
       );
       allow delete: if true;
     }
+
+    // Match rules for "settings" collection
+    match /settings/{settingsId} {
+      allow get, list: if true;
+      allow create, update: if (
+        isValidId(settingsId) &&
+        incoming().id == settingsId &&
+        incoming().pixelId is string && incoming().pixelId.size() <= 50 &&
+        incoming().enabled is bool
+      );
+      allow delete: if true;
+    }
   }
 }

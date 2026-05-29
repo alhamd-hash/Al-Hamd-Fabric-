@@ -123,3 +123,10 @@ export interface Category {
   showProductsOnHomepage?: boolean;
 }
 
+export interface MarketingSettings {
+  id: string;
+  pixelId: string;
+  enabled: boolean;
+  updatedAt?: string;
+}
+

@@ -38,8 +38,19 @@ import {
   listenToCategories,
   addCategoryToFirestore,
   updateCategoryInFirestore,
-  deleteCategoryFromFirestore
+  deleteCategoryFromFirestore,
+  listenToMarketingSettings,
+  saveMarketingSettingsToFirestore
 } from './firebase';
+import {
+  initPixel,
+  disablePixel,
+  trackPageView,
+  trackViewContent,
+  trackAddToCart,
+  trackInitiateCheckout,
+  trackPurchase
+} from './pixelService';
 import { INITIAL_COLLECTIONS, INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './data';
 
 // Core layout components
@@ -286,6 +297,43 @@ export default function App() {
     };
   }, []);
 
+  // --- Meta Facebook Pixel Tracking Hooks ---
+  // Real-time Firestore listener for dynamic Meta Pixel loading
+  useEffect(() => {
+    const unsubscribe = listenToMarketingSettings((settings) => {
+      if (settings && settings.enabled && settings.pixelId) {
+        initPixel(settings.pixelId);
+      } else {
+        disablePixel();
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Trigger Meta PageView on navigation changes
+  useEffect(() => {
+    trackPageView();
+  }, [currentView, selectedProductId]);
+
+  // Trigger Meta ViewContent on focused product load/details view
+  useEffect(() => {
+    if (selectedProductId) {
+      const prod = products.find(p => p.id === selectedProductId);
+      if (prod) {
+        trackViewContent(prod);
+      }
+    }
+  }, [selectedProductId, products]);
+
+  // Trigger Meta InitiateCheckout on navigating to Checkout Form view
+  useEffect(() => {
+    if (currentView === 'checkout' && cart.length > 0) {
+      const total = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+      const itemsList = cart.map(item => ({ product: item.product, quantity: item.quantity }));
+      trackInitiateCheckout(itemsList, total);
+    }
+  }, [currentView]);
+
   // Handle wishlisting items
   const handleToggleWishlist = (productId: string) => {
     setWishlist((prev) => 
@@ -305,6 +353,13 @@ export default function App() {
       return [...prev, { product, quantity, selectedImage }];
     });
     setIsCartOpen(true);
+
+    // Track AddToCart Meta Event
+    try {
+      trackAddToCart(product, quantity);
+    } catch (e) {
+      console.error('[Meta Pixel] AddToCart tracking error:', e);
+    }
   };
 
   const handleUpdateCartQty = (idx: number, amount: number) => {
@@ -377,6 +432,15 @@ export default function App() {
       await addOrderToFirestore(newOrder);
     } catch (err) {
       console.error('Failed to publish order to Firestore database:', err);
+    }
+
+    // Track Purchase Meta Event
+    try {
+      const total = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+      const itemsList = cart.map(item => ({ product: item.product, quantity: item.quantity }));
+      trackPurchase(orderId, itemsList, total);
+    } catch (e) {
+      console.error('[Meta Pixel] Purchase tracking error:', e);
     }
 
     return orderId;
@@ -859,8 +923,8 @@ export default function App() {
               <p className="text-xs text-gray-400 font-mono">ESTD. LAHORE, PAKISTAN</p>
             </div>
 
-            <div className="aspect-[16/6] rounded-2xl overflow-hidden border">
-              <img src="https://images.unsplash.com/photo-1590156546746-c58d04737aa1?auto=format&fit=crop&q=80&w=1200&h=450" alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover filter brightness-[0.7]" />
+            <div className="aspect-[16/8] sm:aspect-[16/7] md:aspect-[16/6.5] rounded-2xl overflow-hidden border border-[#f1ebd9]">
+              <img src="/about_us_banner.png" alt="About Al-Hamd Fabrics Banner" referrerPolicy="no-referrer" className="w-full h-full object-cover shadow-xs" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">

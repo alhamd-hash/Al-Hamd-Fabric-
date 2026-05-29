@@ -12,7 +12,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Order, Review, OrderStatus, HomeBanner, Product, Collection, Category } from './types';
+import { Order, Review, OrderStatus, HomeBanner, Product, Collection, Category, MarketingSettings } from './types';
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
@@ -395,4 +395,34 @@ export function listenToCategories(onUpdate: (categories: Category[]) => void, o
     }
   });
 }
+
+// --- Marketing Settings CRUD ---
+const SETTINGS_PATH = 'settings';
+
+export async function saveMarketingSettingsToFirestore(settings: MarketingSettings): Promise<void> {
+  const docRef = doc(db, SETTINGS_PATH, settings.id);
+  try {
+    await setDoc(docRef, removeUndefinedFields(settings));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${SETTINGS_PATH}/${settings.id}`);
+  }
+}
+
+export function listenToMarketingSettings(onUpdate: (settings: MarketingSettings | null) => void, onError?: (err: Error) => void) {
+  const docRef = doc(db, SETTINGS_PATH, 'marketing_pixel');
+  return onSnapshot(docRef, (snapshot) => {
+    if (snapshot.exists()) {
+      onUpdate(snapshot.data() as MarketingSettings);
+    } else {
+      onUpdate(null);
+    }
+  }, (error) => {
+    if (onError) {
+      onError(error);
+    } else {
+      handleFirestoreError(error, OperationType.GET, `${SETTINGS_PATH}/marketing_pixel`);
+    }
+  });
+}
+
 

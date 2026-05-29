@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import {
   Lock, Settings, ShoppingBag, MessageSquare, Plus, Trash2, Edit2, Filter,
-  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload, Calculator
+  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload, Calculator, Loader
 } from 'lucide-react';
-import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner } from '../types';
+import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, MarketingSettings } from '../types';
 import { formatPKR, compressImage } from '../utils';
+import { listenToMarketingSettings, saveMarketingSettingsToFirestore } from '../firebase';
+import { verifyPixelConnection } from '../pixelService';
 
 interface AdminPanelProps {
   products: Product[];
@@ -71,7 +73,18 @@ export default function AdminPanel({
   const [loginError, setLoginError] = useState('');
 
   // Dashboard Sub-views
-  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products'>('orders');
+  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products' | 'marketing_pixel'>('orders');
+
+  // --- Marketing Pixel States ---
+  const [pixelId, setPixelId] = useState('');
+  const [pixelEnabled, setPixelEnabled] = useState(false);
+  const [isLoadingPixel, setIsLoadingPixel] = useState(true);
+  const [pixelSaveStatus, setPixelSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [pixelError, setPixelError] = useState('');
+  const [pixelSuccess, setPixelSuccess] = useState('');
+  const [pixelVerificationState, setPixelVerificationState] = useState<'idle' | 'checking' | 'verified' | 'failed'>('idle');
+  const [pixelLatency, setPixelLatency] = useState<number | null>(null);
+  const [pixelWarning, setPixelWarning] = useState('');
 
   // Zoomed-in receipt image modal state
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
@@ -179,6 +192,88 @@ export default function AdminPanel({
   // Interactive Delete Assistant states
   const [deleteWizardType, setDeleteWizardType] = useState<'gents-col' | 'gents-cat' | 'ladies-col' | 'ladies-cat' | null>(null);
   const [deleteWizardSelectedId, setDeleteWizardSelectedId] = useState<string>('');
+
+  // --- Meta Pixel Dynamics ---
+  React.useEffect(() => {
+    let active = true;
+    const unsubscribe = listenToMarketingSettings((settings) => {
+      if (!active) return;
+      setIsLoadingPixel(false);
+      if (settings) {
+        setPixelId(settings.pixelId || '');
+        setPixelEnabled(settings.enabled || false);
+      }
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleSaveMarketingPixel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPixelSaveStatus('saving');
+    setPixelVerificationState('checking');
+    setPixelError('');
+    setPixelSuccess('');
+    setPixelWarning('');
+    setPixelLatency(null);
+
+    const cleanId = pixelId.trim();
+
+    // 1. Initial Format Verification before handshake
+    if (!cleanId) {
+      setPixelError('Meta Pixel ID cannot be empty.');
+      setPixelSaveStatus('error');
+      setPixelVerificationState('failed');
+      return;
+    }
+    if (!/^\d{10,20}$/.test(cleanId)) {
+      setPixelError('Invalid ID format. Facebook/Meta Pixel IDs must contain ONLY numeric digits (between 10 and 20 digits long).');
+      setPixelSaveStatus('error');
+      setPixelVerificationState('failed');
+      return;
+    }
+
+    // 2. Telemetry and Event Packet Connection Handshake
+    try {
+      const verifyResult = await verifyPixelConnection(cleanId);
+      
+      if (!verifyResult.success) {
+        setPixelVerificationState('failed');
+        setPixelSaveStatus('error');
+        setPixelError(verifyResult.error || 'Connection verification failed. No response was detected from the Meta Pixel servers.');
+        return;
+      }
+
+      // Record telemetry response latency
+      if (verifyResult.latency !== undefined) {
+        setPixelLatency(verifyResult.latency);
+      }
+
+      if (verifyResult.error) {
+        setPixelWarning(verifyResult.error);
+      }
+
+      // 3. Persist Verified Settings to Firestore
+      await saveMarketingSettingsToFirestore({
+        id: 'marketing_pixel',
+        pixelId: cleanId,
+        enabled: pixelEnabled
+      });
+
+      setPixelSuccess(
+        `Alhamdulillah! Your Facebook Meta Pixel has been successfully verified and connected. Response Latency: ${verifyResult.latency ?? '?'}ms.`
+      );
+      setPixelVerificationState('verified');
+      setPixelSaveStatus('saved');
+    } catch (err: any) {
+      console.error('Failed to verify or update pixel config:', err);
+      setPixelError(err?.message || 'Verification failed. Please check your internet connection or try again.');
+      setPixelVerificationState('failed');
+      setPixelSaveStatus('error');
+    }
+  };
 
   // Authentication submission
   const handleLogin = (e: React.FormEvent) => {
@@ -852,6 +947,21 @@ export default function AdminPanel({
                 {subscriptions.length} Subs
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('marketing_pixel')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'marketing_pixel' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Settings size={14} className="text-[#c5a880]" />
+              Marketing Pixels
+            </span>
+            <span className="bg-amber-100 text-amber-800 border border-amber-200 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+              Meta Pixel
+            </span>
           </button>
         </div>
 
@@ -3489,6 +3599,228 @@ export default function AdminPanel({
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: MARKETING PIXELS */}
+          {currentTab === 'marketing_pixel' && (
+            <div className="space-y-6 animate-fade-in leading-relaxed text-xs">
+              <div className="pb-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#1e152a]">Marketing Pixels & Analytics Integration</h3>
+                  <p className="text-xs text-gray-400">
+                    Propel store sales growth by connecting tracking tools. Dynamically inject tags and measure automated catalog acquisitions.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                    pixelEnabled && pixelId 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : 'bg-stone-100 text-gray-400 border border-stone-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${pixelEnabled && pixelId ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+                    {pixelEnabled && pixelId ? 'Meta Pixel Connected' : 'Deactivated'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Alert notifications */}
+              {pixelError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-2.5 animate-fade-in" id="pixel-error-banner">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5 animate-bounce" />
+                  <div>
+                    <strong className="block font-bold">Failed to sync settings</strong>
+                    <p className="text-[11px] text-red-650 mt-0.5">{pixelError}</p>
+                  </div>
+                </div>
+              )}
+
+              {pixelSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-850 rounded-xl flex items-start gap-2.5 animate-fade-in" id="pixel-success-banner">
+                  <CheckCircle size={16} className="shrink-0 mt-0.5 text-emerald-500" />
+                  <div>
+                    <strong className="block font-bold">Settings Updated Successfully</strong>
+                    <p className="text-[11px] text-emerald-705 mt-0.5">{pixelSuccess}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* Main Configuration Card (lg:col-span-7) */}
+                <form onSubmit={handleSaveMarketingPixel} className="lg:col-span-7 bg-white rounded-xl border border-gray-150 p-5 space-y-5 shadow-xs" id="marketing-setup-form">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-[#1e152a] text-sm block">Facebook Meta Pixel (Shopify-style)</span>
+                        <p className="text-[11px] text-gray-400">Track and optimize conversion campaigns automatically on your ad accounts.</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={pixelEnabled} 
+                          onChange={(e) => setPixelEnabled(e.target.checked)}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#c5a880]"></div>
+                        <span className="sr-only">Toggle tracking state</span>
+                      </label>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Facebook Pixel ID</label>
+                      <input 
+                        type="text" 
+                        value={pixelId}
+                        disabled={isLoadingPixel}
+                        onChange={(e) => {
+                          setPixelId(e.target.value);
+                          if (pixelSaveStatus === 'saved') setPixelSaveStatus('idle');
+                          if (pixelVerificationState !== 'idle') setPixelVerificationState('idle');
+                        }}
+                        placeholder="e.g. 1779877349104"
+                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-mono tracking-wider focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-400 font-light">
+                        Locate your numeric 15-to-16 digit Pixel ID inside Meta Events Manager under Data Sources.
+                      </p>
+                    </div>
+
+                    {pixelVerificationState !== 'idle' && (
+                      <div className={`p-4 rounded-xl border text-xs font-sans space-y-2 animate-fade-in ${
+                        pixelVerificationState === 'checking' ? 'bg-amber-50/40 border-amber-200 text-amber-900' :
+                        pixelVerificationState === 'verified' ? 'bg-emerald-50/40 border-emerald-200 text-emerald-900' :
+                        'bg-red-50/40 border-red-200 text-red-900'
+                      }`} id="pixel-live-status-card">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                            {pixelVerificationState === 'checking' && (
+                              <>
+                                <Loader size={13} className="animate-spin text-amber-600" />
+                                <span>Initiating Telemetry Connection Test...</span>
+                              </>
+                            )}
+                            {pixelVerificationState === 'verified' && (
+                              <>
+                                <CheckCircle size={13} className="text-emerald-600" />
+                                <span>Meta Pixel Connectivity Verified</span>
+                              </>
+                            )}
+                            {pixelVerificationState === 'failed' && (
+                              <>
+                                <AlertTriangle size={13} className="text-red-650 animate-bounce" />
+                                <span>Telemetry Handshake Refused</span>
+                              </>
+                            )}
+                          </span>
+                          
+                          {pixelLatency !== null && (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-mono px-2 py-0.5 rounded font-extrabold uppercase">
+                              {pixelLatency}ms OK
+                            </span>
+                          )}
+                        </div>
+                        
+                        <p className="text-[10.5px] leading-relaxed text-gray-500 font-medium font-sans">
+                          {pixelVerificationState === 'checking' && 'Contacting connect.facebook.net edge routing to request active pageview pixel headers.'}
+                          {pixelVerificationState === 'verified' && 'Pixel active. Communication tests with Meta’s fallback ledger returned a success status. Events are ready to be captured.'}
+                          {pixelVerificationState === 'failed' && 'Error: The telemetry test timed out or returned no response. Make sure you entered a registered Pixel ID, your internet is online, and adblock is turned off.'}
+                        </p>
+
+                        {pixelWarning && (
+                          <div className="mt-2 pt-2 border-t border-amber-200/50 text-[10px] text-amber-800/90 flex items-start gap-1.5">
+                            <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-600 animate-pulse" />
+                            <span><strong>Note:</strong> {pixelWarning}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {pixelId.trim() && !/^\d+$/.test(pixelId.trim()) && (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-[10px] flex items-start gap-1.5">
+                        <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-700" />
+                        <span><strong>Format Notice:</strong> Meta Pixel IDs contain digits only. Please verify no alphabetic prefix or letters are included.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-150 flex items-center justify-between gap-4 font-sans">
+                    <span className="text-[10px] text-gray-400 select-none">
+                      {pixelSaveStatus === 'saving' ? 'Saving configuration parameters...' : 'Secure SSL Active'}
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={isLoadingPixel || pixelSaveStatus === 'saving'}
+                      className="px-5 py-2.5 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-extrabold uppercase text-[10px] tracking-widest rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs active:scale-98"
+                    >
+                      {pixelSaveStatus === 'saving' ? (
+                        <>
+                          <Loader size={12} className="animate-spin" />
+                          Saving settings...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={12} className="stroke-[3]" />
+                          Save Settings
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Sidebar Information Panel (lg:col-span-5) */}
+                <div className="lg:col-span-5 bg-stone-50 rounded-xl border border-gray-200/65 p-4 space-y-4 font-sans">
+                  <div className="space-y-1">
+                    <h4 className="font-serif font-bold text-[#1e152a] text-sm">Automated Event Tracking Matrix</h4>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Our system automatically tracks direct ecommerce funnel behaviors and communicates them securely to Facebook:
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-start gap-2 bg-white p-2.5 rounded-lg border border-gray-100 shadow-3xs">
+                      <span className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                      <div className="space-y-0.5">
+                        <strong className="text-[#1e152a] font-mono font-bold block text-[10px]">PageView</strong>
+                        <p className="text-[10px] text-gray-500 leading-normal">Fires as people transition between categories, collections, or custom about sections.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 bg-white p-2.5 rounded-lg border border-gray-100 shadow-3xs">
+                      <span className="w-4 h-4 rounded-full bg-purple-50 text-purple-600 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                      <div className="space-y-0.5">
+                        <strong className="text-[#1e152a] font-mono font-bold block text-[10px]">ViewContent</strong>
+                        <p className="text-[10px] text-gray-500 leading-normal">Fires when looking at individual premium lawn suits or Winter shawls.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 bg-white p-2.5 rounded-lg border border-gray-100 shadow-3xs">
+                      <span className="w-4 h-4 rounded-full bg-amber-50 text-amber-600 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                      <div className="space-y-0.5">
+                        <strong className="text-[#1e152a] font-mono font-bold block text-[10px]">AddToCart</strong>
+                        <p className="text-[10px] text-gray-550 leading-normal">Fires immediately when an outfit is added to the shopping drawer bag.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 bg-white p-2.5 rounded-lg border border-gray-100 shadow-3xs">
+                      <span className="w-4 h-4 rounded-full bg-indigo-50 text-indigo-600 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">4</span>
+                      <div className="space-y-0.5">
+                        <strong className="text-[#1e152a] font-mono font-bold block text-[10px]">InitiateCheckout</strong>
+                        <p className="text-[10px] text-gray-550 leading-normal">Fires when they view the checkout shipment collection information page.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 bg-white p-2.5 rounded-lg border border-gray-100 shadow-3xs">
+                      <span className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">5</span>
+                      <div className="space-y-0.5">
+                        <strong className="text-[#1e152a] font-mono font-bold block text-[10px]">Purchase</strong>
+                        <p className="text-[10px] text-gray-550 leading-normal">Fires right as Zaffar Iqbal receives a Lahore COD/Advance transfer order dispatch lock.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
           )}

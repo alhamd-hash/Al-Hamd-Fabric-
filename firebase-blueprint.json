@@ -208,6 +208,31 @@
         "rating": { "type": "number" }
       },
       "required": ["id", "name", "shortDetails", "description", "price", "images", "category", "collectionId", "isNewArrival", "isHotSelling", "rating"]
+    },
+    "MarketingSettings": {
+      "title": "MarketingSettings",
+      "description": "Store application marketing pixels and analytics IDs",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Primary settings identifier (e.g. 'pixel')"
+        },
+        "pixelId": {
+          "type": "string",
+          "description": "Facebook/Meta Pixel ID"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Toggle if the pixel should be loaded globally"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of modification"
+        }
+      },
+      "required": ["id", "pixelId", "enabled"]
     }
   },
   "firestore": {
@@ -234,6 +259,10 @@
     "/products/{productId}": {
       "schema": "Product",
       "description": "Garment Products list"
+    },
+    "/settings/{settingsId}": {
+      "schema": "MarketingSettings",
+      "description": "Dynamic configurations for analytics, marketing tracking systems"
     }
   }
 }

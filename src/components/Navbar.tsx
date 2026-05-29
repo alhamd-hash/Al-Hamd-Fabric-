@@ -67,7 +67,7 @@ export default function Navbar({
           >
             {/* Elegant logo mark styling with custom SVG */}
             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center border-2 border-[#c5a880] shadow-md transform hover:rotate-12 transition-transform duration-300 shrink-0 overflow-hidden">
-              <img src="/src/assets/images/alhamd_logo_1779868686375.png" alt="Al-Hamd Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src="/logo.png" alt="Al-Hamd Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-serif font-bold text-xs xs:text-sm sm:text-lg md:text-2xl text-[#1e152a] tracking-tight leading-none truncate pr-1">

@@ -145,7 +145,7 @@ export default function AdminPanel({
   const [specDupatta, setSpecDupatta] = useState('');
   const [specShirt, setSpecShirt] = useState('');
   const [specTrouser, setSpecTrouser] = useState('');
-  const [specStyle, setSpecStyle] = useState('Unstitched 3-Piece');
+  const [specStyle, setSpecStyle] = useState('');
 
   const [isLadiesSuit, setIsLadiesSuit] = useState(true);
   const [ladiesShirtDetail, setLadiesShirtDetail] = useState('');
@@ -480,11 +480,11 @@ export default function AdminPanel({
       collectionIds: prodSelectedCollections,
       categories: prodSelectedCategories,
       specifications: {
-        'Fabric': specFabric || 'Premium Voile Lawn',
-        'Dupatta': specDupatta || 'Silk Printed (2.5m)',
-        'Shirt': specShirt || 'Printed Lawn (3m)',
-        'Trouser': specTrouser || 'Cambric Cotton (2.5m)',
-        'Style': specStyle
+        ...(specFabric.trim() ? { 'Fabric': specFabric.trim() } : {}),
+        ...(specDupatta.trim() ? { 'Dupatta': specDupatta.trim() } : {}),
+        ...(specShirt.trim() ? { 'Shirt': specShirt.trim() } : {}),
+        ...(specTrouser.trim() ? { 'Trouser': specTrouser.trim() } : {}),
+        ...(specStyle.trim() ? { 'Style': specStyle.trim() } : {})
       },
       isLadiesSuit,
       isNewArrival,
@@ -529,7 +529,7 @@ export default function AdminPanel({
     setSpecDupatta('');
     setSpecShirt('');
     setSpecTrouser('');
-    setSpecStyle('Unstitched 3-Piece');
+    setSpecStyle('');
 
     setIsLadiesSuit(true);
     setLadiesShirtDetail('');
@@ -572,7 +572,7 @@ export default function AdminPanel({
     setSpecDupatta(prod.specifications?.['Dupatta'] || '');
     setSpecShirt(prod.specifications?.['Shirt'] || '');
     setSpecTrouser(prod.specifications?.['Trouser'] || '');
-    setSpecStyle(prod.specifications?.['Style'] || 'Unstitched 3-Piece');
+    setSpecStyle(prod.specifications?.['Style'] || '');
 
     setIsLadiesSuit(prod.isLadiesSuit !== false);
     setIsNewArrival(!!prod.isNewArrival);
@@ -2001,7 +2001,7 @@ export default function AdminPanel({
                       setSpecDupatta('');
                       setSpecShirt('');
                       setSpecTrouser('');
-                      setSpecStyle('Unstitched 3-Piece');
+                      setSpecStyle('');
                       setIsLadiesSuit(true);
                       setShowProdForm(true);
                     }}
@@ -2261,7 +2261,7 @@ export default function AdminPanel({
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-stone-50 border border-stone-150 rounded max-h-40 overflow-y-auto">
                         {collections
-                          .filter(col => isLadiesSuit ? !col.isGents : col.isGents)
+                          .filter(col => (isLadiesSuit ? !col.isGents : col.isGents) && col.id !== 'new-arrivals' && col.id !== 'hot-selling')
                           .map(col => {
                             const isChecked = prodSelectedCollections.includes(col.id);
                             return (
@@ -2282,7 +2282,7 @@ export default function AdminPanel({
                               </label>
                             );
                           })}
-                        {collections.filter(col => isLadiesSuit ? !col.isGents : col.isGents).length === 0 && (
+                        {collections.filter(col => (isLadiesSuit ? !col.isGents : col.isGents) && col.id !== 'new-arrivals' && col.id !== 'hot-selling').length === 0 && (
                           <div className="text-[10px] text-gray-400 italic text-center col-span-2 py-4">No collections found for this gender catalog!</div>
                         )}
                       </div>
@@ -2321,6 +2321,73 @@ export default function AdminPanel({
                         {categories.filter(cat => isLadiesSuit ? !cat.isGents : cat.isGents).length === 0 && (
                           <div className="text-[10px] text-gray-400 italic text-center col-span-2 py-4">No categories found for this gender catalog!</div>
                         )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5. PRODUCT COMPONENT SPECIFICATIONS (OPTIONAL) */}
+                  <div className="p-4 bg-white/75 border border-stone-200 rounded-lg space-y-3 text-left">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-650">
+                      Product Specifications / Suit Components (Optional)
+                    </span>
+                    <p className="text-[10px] text-gray-400 leading-snug font-normal text-left">
+                      Yahan sirf woh components likhein jo aap is product main customer ko detail dena chahte hain. Jis field ko aap khali (blank) chorein ge, woh product page pr show nahi ho gi aur na he khd se dupatta waghaira add ho ga.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 tracking-wide mb-1">Fabric Type</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Lawn, Cotton, Khaddar"
+                          value={specFabric}
+                          onChange={(e) => setSpecFabric(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-medium text-gray-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 tracking-wide mb-1">Dupatta Details</label>
+                        <input
+                          type="text"
+                          placeholder="Leave blank if not applicable (e.g. Silk Printed 2.5m)"
+                          value={specDupatta}
+                          onChange={(e) => setSpecDupatta(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-medium text-gray-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 tracking-wide mb-1">Shirt Fabric</label>
+                        <input
+                          type="text"
+                          placeholder="Leave blank if not applicable (e.g. Printed Lawn 3m)"
+                          value={specShirt}
+                          onChange={(e) => setSpecShirt(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-medium text-gray-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 tracking-wide mb-1">Trouser Fabric</label>
+                        <input
+                          type="text"
+                          placeholder="Leave blank if not applicable (e.g. Cambric Cotton 2.5m)"
+                          value={specTrouser}
+                          onChange={(e) => setSpecTrouser(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-medium text-gray-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 tracking-wide mb-1">Suit Style / Stitch Type</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Unstitched 3-Piece, Unstitched Kurtis"
+                          value={specStyle}
+                          onChange={(e) => setSpecStyle(e.target.value)}
+                          className="w-full bg-white border border-gray-200 px-3 py-2 rounded focus:outline-none focus:ring-1 focus:ring-[#c5a880] text-xs font-medium text-gray-800"
+                        />
                       </div>
                     </div>
                   </div>

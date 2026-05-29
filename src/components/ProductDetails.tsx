@@ -279,19 +279,23 @@ Please let me know if you have this yardage available so I can proceed with the 
             )}
             
             {/* Extra Specifications Table */}
-            <div className="mt-6 border border-gray-100 rounded-xl overflow-hidden">
-              <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
-                <span className="font-serif text-xs font-semibold text-gray-700 uppercase tracking-wider">Suit Specifications Grid</span>
+            {product.specifications && Object.entries(product.specifications).filter(([_, value]) => value && value.trim() !== '').length > 0 && (
+              <div className="mt-6 border border-gray-100 rounded-xl overflow-hidden animate-fade-in">
+                <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
+                  <span className="font-serif text-xs font-semibold text-gray-700 uppercase tracking-wider">Suit Specifications Grid</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {Object.entries(product.specifications)
+                    .filter(([_, value]) => value && value.trim() !== '')
+                    .map(([key, value]) => (
+                      <div key={key} className="grid grid-cols-3 px-4 py-2.5 text-xs font-sans">
+                        <span className="text-gray-400 font-medium">{key}</span>
+                        <span className="text-gray-800 font-bold col-span-2">{value}</span>
+                      </div>
+                    ))}
+                </div>
               </div>
-              <div className="divide-y divide-gray-100">
-                {Object.entries(product.specifications).map(([key, value]) => (
-                  <div key={key} className="grid grid-cols-3 px-4 py-2.5 text-xs font-sans">
-                    <span className="text-gray-400 font-medium">{key}</span>
-                    <span className="text-gray-800 font-bold col-span-2">{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
 
           </div>
 

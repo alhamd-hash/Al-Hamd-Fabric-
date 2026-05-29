@@ -63,21 +63,27 @@ import TrackOrderModal from './components/TrackOrderModal';
 import AdminPanel from './components/AdminPanel';
 
 export default function App() {
-  // Global Persisted States (Local Storage)
-  const [products, setProducts] = useState<Product[]>([]);
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Global Persisted States (Local Storage / Defaults Fallback)
+  const [products, setProducts] = useState<Product[]>(() => {
+    const cached = getStoredProducts();
+    return cached && cached.length > 0 ? cached : INITIAL_PRODUCTS;
+  });
+  const [collections, setCollections] = useState<Collection[]>(() => {
+    const cached = getStoredCollections();
+    return cached && cached.length > 0 ? cached : INITIAL_COLLECTIONS;
+  });
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const cached = getStoredCategories();
+    return cached && cached.length > 0 ? cached : INITIAL_CATEGORIES;
+  });
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [notifications, setNotifications] = useState<NewsletterNotification[]>([]);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
 
-  // Preloader syncing state for new visitors and incognito to ensure they see live database changes immediately without flashes
-  const [isSyncing, setIsSyncing] = useState(() => {
-    const hasCache = getStoredProducts().length > 0 && getStoredCollections().length > 0;
-    return !hasCache; // sync screen active on first-ever load
-  });
+  // Instant bootstrap - disabled blocking preloader screen to load fully interactive layout immediately
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Navigation Routing
   const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'checkout' | 'admin' | 'collection' | 'category'>('home');
@@ -1280,7 +1286,7 @@ export default function App() {
                       Ladies Collections
                     </span>
                     <div className="flex gap-4 sm:gap-6 py-2 overflow-x-auto no-scrollbar scroll-smooth">
-                      {collections.filter(col => !col.isGents && !col.isCombine && col.showInNavbar !== false).map((col) => (
+                      {collections.filter(col => !col.isGents && !col.isCombine && col.showInNavbar !== false && col.id !== 'new-arrivals' && col.id !== 'hot-selling').map((col) => (
                         <div
                           key={col.id}
                           onClick={() => handleNavigation('collection', col.id)}

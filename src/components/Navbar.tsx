@@ -28,6 +28,7 @@ export default function Navbar({
   const dynamicGentsCategories = categories ? categories.filter(c => c.isGents && c.showInNavbar !== false).map(c => c.name) : [];
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   // Expanded menu states to support the category-explorer interactions
   const [mobileShopOpen, setMobileShopOpen] = useState(false);
@@ -65,9 +66,19 @@ export default function Navbar({
             className="flex items-center gap-1.5 xs:gap-2 sm:gap-3 cursor-pointer shrink shadow-2xs min-w-0"
             id="brand-logo"
           >
-            {/* Elegant logo mark styling with custom SVG */}
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center border-2 border-[#c5a880] shadow-md transform hover:rotate-12 transition-transform duration-300 shrink-0 overflow-hidden">
-              <img src="/logo.png" alt="Al-Hamd Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            {/* Elegant logo mark styling with custom SVG or fallback gold AH monogram */}
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#1e152a] rounded-full flex items-center justify-center border-2 border-[#c5a880] shadow-md transform hover:rotate-12 transition-transform duration-300 shrink-0 overflow-hidden">
+              {!logoError ? (
+                <img 
+                  src="/logo.png" 
+                  alt="Al-Hamd Logo" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <span className="font-serif font-extrabold text-[#c5a880] text-sm sm:text-base tracking-tighter select-none">AH</span>
+              )}
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-serif font-bold text-xs xs:text-sm sm:text-lg md:text-2xl text-[#1e152a] tracking-tight leading-none truncate pr-1">
@@ -244,10 +255,10 @@ export default function Navbar({
                     ))
                   )}
                   <div className="px-4 py-1.5 mt-1 text-[10px] text-gray-400 border-b border-gray-50 uppercase tracking-wider font-bold">👗 Ladies Collections</div>
-                  {collections.filter(c => !c.isGents && c.showInNavbar !== false).length === 0 ? (
+                  {collections.filter(c => !c.isGents && c.showInNavbar !== false && c.id !== 'new-arrivals' && c.id !== 'hot-selling').length === 0 ? (
                     <div className="px-5 py-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
                   ) : (
-                    collections.filter(c => !c.isGents && c.showInNavbar !== false).map((col) => (
+                    collections.filter(c => !c.isGents && c.showInNavbar !== false && c.id !== 'new-arrivals' && c.id !== 'hot-selling').map((col) => (
                       <button
                         key={col.id}
                         onClick={() => onNavigate('collection', col.id)}
@@ -432,10 +443,10 @@ export default function Navbar({
                     </button>
                     {mobileLadiesColsOpen && (
                       <div className="pl-3 mt-1 space-y-1 bg-stone-50 rounded p-1.5 animate-fade-in">
-                        {collections.filter(c => !c.isGents && c.showInNavbar !== false).length === 0 ? (
+                        {collections.filter(c => !c.isGents && c.showInNavbar !== false && c.id !== 'new-arrivals' && c.id !== 'hot-selling').length === 0 ? (
                           <div className="w-full text-left py-2 px-2 text-xs text-gray-400 italic font-medium">No collection available (Nill)</div>
                         ) : (
-                          collections.filter(c => !c.isGents && c.showInNavbar !== false).map((col) => (
+                          collections.filter(c => !c.isGents && c.showInNavbar !== false && c.id !== 'new-arrivals' && c.id !== 'hot-selling').map((col) => (
                             <button
                               key={col.id}
                               onClick={() => { onNavigate('collection', col.id); setMobileMenuOpen(false); }}

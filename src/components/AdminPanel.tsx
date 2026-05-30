@@ -36,6 +36,7 @@ interface AdminPanelProps {
   onUpdateBanner: (bannerId: string, banner: HomeBanner) => void;
   onDeleteBanner: (bannerId: string) => void;
   onClose: () => void;
+  onRestoreDefaults?: () => Promise<void>;
 }
 
 export default function AdminPanel({
@@ -65,12 +66,14 @@ export default function AdminPanel({
   onAddBanner,
   onUpdateBanner,
   onDeleteBanner,
-  onClose
+  onClose,
+  onRestoreDefaults
 }: AdminPanelProps) {
   // Authentication State
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [isSeeding, setIsSeeding] = useState(false);
 
   // Dashboard Sub-views
   const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products' | 'marketing_pixel'>('orders');
@@ -963,6 +966,46 @@ export default function AdminPanel({
               Meta Pixel
             </span>
           </button>
+
+          {onRestoreDefaults && (
+            <div className="mt-4 pt-4 border-t border-gray-100 text-left">
+              <span className="text-[10px] font-bold text-[#c5a880] uppercase tracking-widest block px-2.5 mb-2">Db Utilities</span>
+              <div className="p-3 bg-stone-50 border border-gray-200 rounded-lg space-y-2.5">
+                <p className="text-[10px] text-gray-500 leading-normal font-medium">
+                  If the store database is empty or was cleared, use this to instantly restore the standard Al-Hamd collections, categories, and inventory.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm("Restore standard Al-Hamd Fabrics collections, categories, and products to live database? This will rewrite standard entries!")) {
+                      setIsSeeding(true);
+                      try {
+                        await onRestoreDefaults();
+                      } catch (e) {
+                        console.error('Failed to manually seed DB:', e);
+                      } finally {
+                        setIsSeeding(false);
+                      }
+                    }
+                  }}
+                  disabled={isSeeding}
+                  className="w-full py-2 px-3 bg-stone-100 hover:bg-[#c5a880]/20 text-gray-700 hover:text-black font-extrabold uppercase text-[9px] tracking-wider border border-gray-200 rounded cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                >
+                  {isSeeding ? (
+                    <>
+                      <Loader size={11} className="animate-spin text-[#c5a880]" />
+                      <span>Syncing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={11} className="text-[#c5a880]" />
+                      <span>Restore Demo Data</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Selected Dashboard Detail Panel (Grid-Columns: 9) */}

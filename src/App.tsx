@@ -66,15 +66,15 @@ export default function App() {
   // Global Persisted States (Local Storage / Defaults Fallback)
   const [products, setProducts] = useState<Product[]>(() => {
     const cached = getStoredProducts();
-    return cached && cached.length > 0 ? cached : INITIAL_PRODUCTS;
+    return cached && cached.length > 0 ? cached : [];
   });
   const [collections, setCollections] = useState<Collection[]>(() => {
     const cached = getStoredCollections();
-    return cached && cached.length > 0 ? cached : INITIAL_COLLECTIONS;
+    return cached && cached.length > 0 ? cached : [];
   });
   const [categories, setCategories] = useState<Category[]>(() => {
     const cached = getStoredCategories();
-    return cached && cached.length > 0 ? cached : INITIAL_CATEGORIES;
+    return cached && cached.length > 0 ? cached : [];
   });
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -119,17 +119,14 @@ export default function App() {
   // Initialize data on mount
   useEffect(() => {
     const cachedProds = getStoredProducts();
-    if (cachedProds && cachedProds.length > 0) {
-      setProducts(cachedProds);
-    }
+    setProducts(cachedProds && cachedProds.length > 0 ? cachedProds : []);
+
     const cachedCols = getStoredCollections();
-    if (cachedCols && cachedCols.length > 0) {
-      setCollections(cachedCols);
-    }
+    setCollections(cachedCols && cachedCols.length > 0 ? cachedCols : []);
+
     const cachedCats = getStoredCategories();
-    if (cachedCats && cachedCats.length > 0) {
-      setCategories(cachedCats);
-    }
+    setCategories(cachedCats && cachedCats.length > 0 ? cachedCats : []);
+
     setSubscriptions(getStoredSubscriptions());
 
     // Start with local systems first for instantaneous boot UI
@@ -150,7 +147,7 @@ export default function App() {
     // Safe timeout to disable loader in case of poor connectivity
     const safetyTimeout = setTimeout(() => {
       setIsSyncing(false);
-    }, 2800);
+    }, 4500);
 
     // Bind real-time server database listeners
     const unsubscribeOrders = listenToOrders(
@@ -188,24 +185,9 @@ export default function App() {
     );
 
     const unsubscribeProducts = listenToProducts(
-      async (firestoreProducts) => {
-        const isSeeded = localStorage.getItem('alhamd_products_seeded') === 'true';
-        if (firestoreProducts.length === 0 && !isSeeded) {
-          localStorage.setItem('alhamd_products_seeded', 'true');
-          try {
-            for (const prod of INITIAL_PRODUCTS) {
-              await addProductToFirestore(prod);
-            }
-          } catch (e) {
-            console.error('Failed to bootstrap products:', e);
-          }
-        } else {
-          if (firestoreProducts.length > 0) {
-            localStorage.setItem('alhamd_products_seeded', 'true');
-          }
-          setProducts(firestoreProducts);
-          saveStoredProducts(firestoreProducts);
-        }
+      (firestoreProducts) => {
+        setProducts(firestoreProducts);
+        saveStoredProducts(firestoreProducts);
         productsLoaded = true;
         checkFinishedLoading();
       },
@@ -217,44 +199,9 @@ export default function App() {
     );
 
     const unsubscribeCollections = listenToCollections(
-      async (firestoreCollections) => {
-        const isSeeded = localStorage.getItem('alhamd_collections_seeded') === 'true';
-        if (firestoreCollections.length === 0 && !isSeeded) {
-          localStorage.setItem('alhamd_collections_seeded', 'true');
-          localStorage.setItem('alhamd_defaults_v2_synced', 'true');
-          try {
-            for (const col of INITIAL_COLLECTIONS) {
-              await addCollectionToFirestore(col);
-            }
-          } catch (e) {
-            console.error('Failed to bootstrap collections:', e);
-          }
-        } else {
-          // Check for new arrivals and hot selling defaults in v2
-          const defaultsV2 = localStorage.getItem('alhamd_defaults_v2_synced') === 'true';
-          if (!defaultsV2) {
-            localStorage.setItem('alhamd_defaults_v2_synced', 'true');
-            try {
-              const hasNewArrivals = firestoreCollections.some(c => c.id === 'new-arrivals');
-              const hasHotSelling = firestoreCollections.some(c => c.id === 'hot-selling');
-              if (!hasNewArrivals) {
-                const nac = INITIAL_COLLECTIONS.find(c => c.id === 'new-arrivals');
-                if (nac) await addCollectionToFirestore(nac);
-              }
-              if (!hasHotSelling) {
-                const hsc = INITIAL_COLLECTIONS.find(c => c.id === 'hot-selling');
-                if (hsc) await addCollectionToFirestore(hsc);
-              }
-            } catch (e) {
-              console.error('Failed to auto-upgrade default collections:', e);
-            }
-          }
-          if (firestoreCollections.length > 0) {
-            localStorage.setItem('alhamd_collections_seeded', 'true');
-          }
-          setCollections(firestoreCollections);
-          saveStoredCollections(firestoreCollections);
-        }
+      (firestoreCollections) => {
+        setCollections(firestoreCollections);
+        saveStoredCollections(firestoreCollections);
         collectionsLoaded = true;
         checkFinishedLoading();
       },
@@ -266,24 +213,9 @@ export default function App() {
     );
 
     const unsubscribeCategories = listenToCategories(
-      async (firestoreCategories) => {
-        const isSeeded = localStorage.getItem('alhamd_categories_seeded') === 'true';
-        if (firestoreCategories.length === 0 && !isSeeded) {
-          localStorage.setItem('alhamd_categories_seeded', 'true');
-          try {
-            for (const cat of INITIAL_CATEGORIES) {
-              await addCategoryToFirestore(cat);
-            }
-          } catch (e) {
-            console.error('Failed to bootstrap categories:', e);
-          }
-        } else {
-          if (firestoreCategories.length > 0) {
-            localStorage.setItem('alhamd_categories_seeded', 'true');
-          }
-          setCategories(firestoreCategories);
-          saveStoredCategories(firestoreCategories);
-        }
+      (firestoreCategories) => {
+        setCategories(firestoreCategories);
+        saveStoredCategories(firestoreCategories);
         categoriesLoaded = true;
         checkFinishedLoading();
       },
@@ -573,6 +505,26 @@ export default function App() {
   };
 
   // --- Admin actions ---
+  const handleRestoreDefaults = async () => {
+    try {
+      // 1. Write collections
+      for (const col of INITIAL_COLLECTIONS) {
+        await addCollectionToFirestore(col);
+      }
+      // 2. Write categories
+      for (const cat of INITIAL_CATEGORIES) {
+        await addCategoryToFirestore(cat);
+      }
+      // 3. Write products
+      for (const prod of INITIAL_PRODUCTS) {
+        await addProductToFirestore(prod);
+      }
+    } catch (err) {
+      console.error('Failed to restore defaults in Firestore:', err);
+      throw err;
+    }
+  };
+
   const handleAddProduct = async (prod: Product) => {
     const updated = [prod, ...products];
     setProducts(updated);
@@ -931,6 +883,7 @@ export default function App() {
             onEditCategory={handleEditCategory}
             onDeleteCategory={handleDeleteCategory}
             onClose={() => handleNavigation('home')}
+            onRestoreDefaults={handleRestoreDefaults}
           />
         ) : currentView === 'about' ? (
           /* VIEW 4: ABOUT US VIEW */

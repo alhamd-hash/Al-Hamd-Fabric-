@@ -13,48 +13,7 @@ interface HeroSlide {
   badge: string;
 }
 
-const HERO_SLIDES: HeroSlide[] = [
-  {
-    id: 4,
-    title: 'Gents Exclusive\nEid Collection 2026',
-    subtitle: 'Impeccably tailored 100% pure Giza cotton suits and traditional kurtas designed for comfort and celebration this Festive Eid season.',
-    ctaText: 'Shop Gents Cotton Suits',
-    image: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&q=80&w=1600&h=600',
-    targetView: 'category',
-    targetPayload: 'Cotton Suits',
-    badge: 'FESTIVE EID SPECIAL'
-  },
-  {
-    id: 1,
-    title: 'Premium Fabrics\nFor Every Occasion',
-    subtitle: 'Unstitched | Luxury | High Quality Lawn Suits with Pure Silk & Chiffon Dupattas.',
-    ctaText: 'Shop Summer Collection',
-    image: 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&fit=crop&q=80&w=1600&h=600',
-    targetView: 'collection',
-    targetPayload: 'col-summer',
-    badge: 'NEW ARRIVALS 2026'
-  },
-  {
-    id: 2,
-    title: 'Luxury Embroidered\nTimeless Masterpieces',
-    subtitle: 'Ethereal threadwork, pure fabrics, and handcoded Pakistani aesthetics for your wedding festivals.',
-    ctaText: 'Explore Wedding Wear',
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&q=80&w=1600&h=600',
-    targetView: 'collection',
-    targetPayload: 'col-wedding',
-    badge: 'LUXURY CLASSICS'
-  },
-  {
-    id: 3,
-    title: 'Cozy Winter Shawls\n& Pure Khaddar',
-    subtitle: 'Discover our heavy woolen shawls paired with comfortable, warm and durable handloomed Karandi shirts.',
-    ctaText: 'Browse Winter Catalog',
-    image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=1600&h=600',
-    targetView: 'collection',
-    targetPayload: 'col-winter',
-    badge: 'SEASON SPECIAL'
-  }
-];
+const HERO_SLIDES: HeroSlide[] = [];
 
 interface HeroSliderProps {
   onNavigate: (view: 'home' | 'collection' | 'category' | 'product', payload?: string) => void;

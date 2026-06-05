@@ -130,3 +130,11 @@ export interface MarketingSettings {
   updatedAt?: string;
 }
 
+export interface SeoSettings {
+  id: string;
+  title: string;
+  description: string;
+  keywords: string;
+  updatedAt?: string;
+}
+

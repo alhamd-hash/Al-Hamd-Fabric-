@@ -4,7 +4,7 @@ import {
   MapPin, Heart, Share2, Facebook, Instagram, Send, Sparkles, CheckCircle2, ChevronRight, ArrowRight, CornerDownRight, Loader, Tag, ShieldAlert,
   Lock, AlertTriangle
 } from 'lucide-react';
-import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, Category } from './types';
+import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, Category, SeoSettings } from './types';
 import {
   getStoredProducts, saveStoredProducts,
   getStoredCollections, saveStoredCollections,
@@ -41,7 +41,9 @@ import {
   updateCategoryInFirestore,
   deleteCategoryFromFirestore,
   listenToMarketingSettings,
-  saveMarketingSettingsToFirestore
+  saveMarketingSettingsToFirestore,
+  listenToSeoSettings,
+  saveSeoSettingsToFirestore
 } from './firebase';
 import {
   initPixel,
@@ -96,6 +98,7 @@ export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminPasswordValue, setAdminPasswordValue] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
+  const [seoSettings, setSeoSettings] = useState<SeoSettings | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [collectionCategoryFilter, setCollectionCategoryFilter] = useState<string | null>(null);
@@ -267,6 +270,24 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Real-time Firestore listener for dynamic SEO Settings loading
+  useEffect(() => {
+    const unsubscribe = listenToSeoSettings((settings) => {
+      if (settings) {
+        setSeoSettings(settings);
+      } else {
+        // Fallback default
+        setSeoSettings({
+          id: 'seo_config',
+          title: 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics',
+          description: "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits. Real-time updates direct from our database.",
+          keywords: 'Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore'
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Trigger Meta PageView on navigation changes
   useEffect(() => {
     trackPageView();
@@ -339,6 +360,16 @@ export default function App() {
     meta.setAttribute('content', content);
   };
 
+  const updateMetaKeywords = (content: string) => {
+    let meta = document.querySelector('meta[name="keywords"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'keywords');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', content);
+  };
+
   // 1. Bidirectional URL -> State Synchronizer
   useEffect(() => {
     const handlePopState = () => {
@@ -370,8 +401,8 @@ export default function App() {
   // 3. State -> URL & SEO metadata Tags Synchronizer
   useEffect(() => {
     let targetPath = '/';
-    let targetTitle = 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics';
-    let targetDesc = "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits. Real-time updates direct from our database.";
+    let targetTitle = seoSettings?.title || 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics';
+    let targetDesc = seoSettings?.description || "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits. Real-time updates direct from our database.";
 
     if (selectedProductId) {
       const prod = products.find(p => p.id === selectedProductId);
@@ -413,12 +444,13 @@ export default function App() {
     // Update Browser title & meta tag
     document.title = targetTitle;
     updateMetaDescription(targetDesc);
+    updateMetaKeywords(seoSettings?.keywords || 'Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore');
 
     // Apply push/replace state to keep route synced cleanly without disturbing user focus
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, '', targetPath);
     }
-  }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections]);
+  }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections, seoSettings]);
 
   // Trigger Meta ViewContent on focused product load/details view
   useEffect(() => {
@@ -1117,6 +1149,8 @@ export default function App() {
                 onRestoreDefaults={handleRestoreDefaults}
                 isAuthenticatedProp={isAdminAuthenticated}
                 onLogout={() => setIsAdminAuthenticated(false)}
+                seoSettings={seoSettings}
+                onSaveSeoSettings={saveSeoSettingsToFirestore}
               />
             </Suspense>
           )

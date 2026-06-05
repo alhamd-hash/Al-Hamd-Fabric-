@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
   Lock, Settings, ShoppingBag, MessageSquare, Plus, Trash2, Edit2, Filter,
-  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload, Calculator, Loader
+  Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload, Calculator, Loader, Globe
 } from 'lucide-react';
-import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, MarketingSettings } from '../types';
+import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, MarketingSettings, SeoSettings } from '../types';
 import { formatPKR, compressImage } from '../utils';
 import { listenToMarketingSettings, saveMarketingSettingsToFirestore } from '../firebase';
 import { verifyPixelConnection } from '../pixelService';
@@ -39,6 +39,8 @@ interface AdminPanelProps {
   onRestoreDefaults?: () => Promise<void>;
   isAuthenticatedProp?: boolean;
   onLogout?: () => void;
+  seoSettings: SeoSettings | null;
+  onSaveSeoSettings: (settings: SeoSettings) => Promise<void>;
 }
 
 export default function AdminPanel({
@@ -71,7 +73,9 @@ export default function AdminPanel({
   onClose,
   onRestoreDefaults,
   isAuthenticatedProp = false,
-  onLogout
+  onLogout,
+  seoSettings,
+  onSaveSeoSettings
 }: AdminPanelProps) {
   // Authentication State
   const [password, setPassword] = useState('');
@@ -85,7 +89,29 @@ export default function AdminPanel({
   }, [isAuthenticatedProp]);
 
   // Dashboard Sub-views
-  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products' | 'marketing_pixel'>('orders');
+  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products' | 'marketing_pixel' | 'seo'>('orders');
+
+  // --- Admin SEO Tab States ---
+  const [seoFormTitle, setSeoFormTitle] = useState('');
+  const [seoFormDescription, setSeoFormDescription] = useState('');
+  const [seoFormKeywords, setSeoFormKeywords] = useState('');
+  const [seoFormStatus, setSeoFormStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [seoErrorMessage, setSeoErrorMessage] = useState('');
+  const [isSeoInitialized, setIsSeoInitialized] = useState(false);
+
+  React.useEffect(() => {
+    if (seoSettings) {
+      setSeoFormTitle(seoSettings.title);
+      setSeoFormDescription(seoSettings.description);
+      setSeoFormKeywords(seoSettings.keywords);
+      setIsSeoInitialized(true);
+    } else if (!isSeoInitialized) {
+      setSeoFormTitle('Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics');
+      setSeoFormDescription("Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits. Real-time updates direct from our database.");
+      setSeoFormKeywords('Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore');
+      setIsSeoInitialized(true);
+    }
+  }, [seoSettings, isSeoInitialized]);
 
   // --- Marketing Pixel States ---
   const [pixelId, setPixelId] = useState('');
@@ -284,6 +310,26 @@ export default function AdminPanel({
       setPixelError(err?.message || 'Verification failed. Please check your internet connection or try again.');
       setPixelVerificationState('failed');
       setPixelSaveStatus('error');
+    }
+  };
+
+  const handleSaveSeoSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSeoFormStatus('saving');
+    setSeoErrorMessage('');
+    try {
+      await onSaveSeoSettings({
+        id: 'seo_config',
+        title: seoFormTitle.trim(),
+        description: seoFormDescription.trim(),
+        keywords: seoFormKeywords.trim(),
+        updatedAt: new Date().toISOString()
+      });
+      setSeoFormStatus('saved');
+    } catch (err: any) {
+      console.error('Failed to update SEO config:', err);
+      setSeoErrorMessage(err?.message || 'Firestore write error occurred.');
+      setSeoFormStatus('error');
     }
   };
 
@@ -976,6 +1022,22 @@ export default function AdminPanel({
             </span>
             <span className="bg-amber-100 text-amber-800 border border-amber-200 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
               Meta Pixel
+            </span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('seo')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'seo' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+            id="admin-sidebar-tab-seo"
+          >
+            <span className="flex items-center gap-2">
+              <Globe size={14} className="text-[#c5a880]" />
+              SEO Settings & SERP
+            </span>
+            <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+              Google SEO
             </span>
           </button>
 
@@ -3943,6 +4005,264 @@ export default function AdminPanel({
                   </div>
                 </div>
 
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SEO & GOOGLE SERP SIMULATOR */}
+          {currentTab === 'seo' && (
+            <div className="space-y-6 animate-fade-in leading-relaxed text-xs">
+              <div className="pb-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#1e152a]">Google SEO Metadata & SERP Simulator</h3>
+                  <p className="text-xs text-gray-400">
+                    Optimize metadata in real time. Formulate precise descriptions and keywords to maximize click-through rates (CTR) on organic query systems.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                    seoFormStatus === 'saved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-stone-100 text-gray-400 border border-stone-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${seoFormStatus === 'saved' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+                    {seoFormStatus === 'saved' ? 'Changes Live' : 'Not Saved'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Success/Error Notifications */}
+              {seoErrorMessage && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-2.5 animate-fade-in" id="seo-error-banner">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5 animate-bounce" />
+                  <div>
+                    <strong className="block font-bold">Failed to update SEO config</strong>
+                    <p className="text-[11px] text-red-655 mt-0.5">{seoErrorMessage}</p>
+                  </div>
+                </div>
+              )}
+
+              {seoFormStatus === 'saved' && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-850 rounded-xl flex items-start gap-2.5 animate-fade-in" id="seo-success-banner">
+                  <CheckCircle size={16} className="shrink-0 mt-0.5 text-emerald-500" />
+                  <div>
+                    <strong className="block font-bold">SEO Parameters Connected Real-Time!</strong>
+                    <p className="text-[11px] text-emerald-705 mt-0.5">
+                      Your changes have been saved to Firestore and dynamically updated across browser titles and indexable metadata meta tags.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Form fields */}
+                <form onSubmit={handleSaveSeoSettings} className="lg:col-span-7 bg-white rounded-xl border border-gray-150 p-5 space-y-5 shadow-xs" id="seo-setup-form">
+                  <div className="space-y-4">
+                    <span className="font-bold text-[#1e152a] text-sm block border-b pb-2">Global Meta Configuration</span>
+
+                    {/* SEO Title */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Search Engine Title</label>
+                        <span className={`text-[10px] font-mono ${seoFormTitle.length > 60 ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                          {seoFormTitle.length} / 60 chars
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={seoFormTitle}
+                        onChange={(e) => {
+                          setSeoFormTitle(e.target.value);
+                          if (seoFormStatus === 'saved') setSeoFormStatus('idle');
+                        }}
+                        placeholder="Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics"
+                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all"
+                        required
+                      />
+                      <p className="text-[10px] text-gray-400">
+                        The clickable blue header shown on search results pages. Keep it under 60 characters for best display on desktop/mobile screens.
+                      </p>
+                    </div>
+
+                    {/* Meta Description */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Meta Description</label>
+                        <span className={`text-[10px] font-mono ${seoFormDescription.length > 160 ? 'text-amber-600 font-bold' : 'text-gray-400'}`}>
+                          {seoFormDescription.length} / 160 chars
+                        </span>
+                      </div>
+                      <textarea
+                        value={seoFormDescription}
+                        onChange={(e) => {
+                          setSeoFormDescription(e.target.value);
+                          if (seoFormStatus === 'saved') setSeoFormStatus('idle');
+                        }}
+                        placeholder="Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn..."
+                        className="w-full h-24 px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all resize-none"
+                        required
+                      />
+                      <p className="text-[10px] text-gray-400">
+                        A detailed summary of your store. Helps crawlers index keywords. Google suggests descriptions between 120 and 160 characters.
+                      </p>
+                    </div>
+
+                    {/* Keywords */}
+                    <div className="space-y-1.5">
+                      <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Search Keywords (Comma Separated)</label>
+                      <input
+                        type="text"
+                        value={seoFormKeywords}
+                        onChange={(e) => {
+                          setSeoFormKeywords(e.target.value);
+                          if (seoFormStatus === 'saved') setSeoFormStatus('idle');
+                        }}
+                        placeholder="Al-Hamd Fabrics, Lawn Suits, Unstitched Gents Fabrics, Giza Cotton, Lahore"
+                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all"
+                      />
+                      <div className="flex flex-wrap gap-1 mt-1.5 pt-1">
+                        {seoFormKeywords.split(',').map((kw, idx) => {
+                          const trimmed = kw.trim();
+                          if (!trimmed) return null;
+                          return (
+                            <span key={idx} className="bg-[#c5a880]/10 text-[#1e152a] text-[9.5px] px-2 py-0.5 rounded font-medium border border-[#c5a880]/20">
+                              #{trimmed}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submission and Status */}
+                  <div className="pt-4 border-t border-gray-150 flex items-center justify-between gap-4 font-sans">
+                    <span className="text-[10px] text-gray-400 select-none">
+                      {seoFormStatus === 'saving' ? 'Publishing parameters to server...' : 'Secure SSL Active'}
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={seoFormStatus === 'saving'}
+                      className="px-5 py-2.5 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-extrabold uppercase text-[10px] tracking-widest rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs active:scale-98"
+                    >
+                      {seoFormStatus === 'saving' ? (
+                        <>
+                          <Loader size={12} className="animate-spin" />
+                          Publishing Seos...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={12} className="stroke-[3]" />
+                          Save SEO Settings
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Real-time Google SERP Simulator Widget (lg:col-span-5) */}
+                <div className="lg:col-span-5 bg-stone-50 rounded-xl border border-gray-200 p-4 space-y-4 font-sans font-normal text-left">
+                  <div className="space-y-1">
+                    <h4 className="font-serif font-bold text-[#1e152a] text-sm flex items-center gap-1.5">
+                      <Globe size={14} className="text-[#c5a880] animate-pulse" />
+                      Google SERP Sandbox Previews
+                    </h4>
+                    <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
+                      This simulator renders exactly how Google crawlers will present your store homepage on live desktop and mobile search engine search screens:
+                    </p>
+                  </div>
+
+                  {/* Dynamic Google Result - Desktop */}
+                  <div className="bg-white rounded-xl border border-gray-155 p-4.5 space-y-2 pb-5 shadow-3xs hover:shadow-2xs transition-shadow">
+                    <div className="flex justify-between items-center text-[9px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-50 pb-1.5">
+                      <span>Desktop Search Preview</span>
+                      <span className="text-[#c5a880]">Live Sandbox</span>
+                    </div>
+
+                    <div className="space-y-1 font-sans text-left mt-2">
+                      {/* Breadcrumb URL snippet */}
+                      <div className="text-[12px] text-[#202124] flex items-center gap-1 overflow-hidden whitespace-nowrap text-ellipsis font-light">
+                        <span className="font-medium text-[13px]">https://alhamdfabrics.shop</span>
+                        <span className="text-[#5f6368] text-[10px]">› categories › gents-cotton</span>
+                      </div>
+                      
+                      {/* Live Blue Title tag */}
+                      <div className="text-[19px] leading-tight text-[#1a0dab] hover:underline font-normal cursor-pointer break-words line-clamp-2">
+                        {seoFormTitle || 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics'}
+                      </div>
+
+                      {/* Snippet text description */}
+                      <div className="text-[13px] text-[#4d5156] leading-relaxed break-words line-clamp-2 font-normal">
+                        <span className="text-gray-400 font-mono text-[10.5px] border border-gray-100 px-1 py-0.2 rounded mr-1">Jun 5, 2026</span>
+                        {seoFormDescription || "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits..."}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Google Result - Mobile Grid */}
+                  <div className="bg-white rounded-xl border border-gray-155 p-4.5 space-y-2 pb-5 shadow-3xs overflow-hidden">
+                    <div className="flex justify-between items-center text-[9px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-50 pb-1.5">
+                      <span>Mobile Search Card</span>
+                      <span className="text-blue-500 font-mono">Pixel Sync Responsive</span>
+                    </div>
+
+                    <div className="space-y-1.5 font-sans text-left mt-2 max-w-sm mx-auto p-3.5 border border-stone-100 rounded-2xl bg-[#f8f9fa]">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-stone-100 text-[#1e152a] font-serif font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-stone-200">
+                          AH
+                        </div>
+                        <div className="text-[12px] leading-tight flex flex-col">
+                          <span className="font-medium text-[#202124] text-[11px]">Al-Hamd Fabrics</span>
+                          <span className="text-[#5f6368] text-[9px]">https://alhamdfabrics.shop</span>
+                        </div>
+                      </div>
+
+                      {/* Live Blue Title tag */}
+                      <div className="text-[16px] leading-snug text-[#1558d6] hover:underline font-medium cursor-pointer break-words line-clamp-3">
+                        {seoFormTitle || 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics'}
+                      </div>
+
+                      {/* Snippet message description */}
+                      <div className="text-[12px] text-[#4d5156] leading-relaxed break-words font-light">
+                        {seoFormDescription || "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits..."}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SEO Audit Checklist (Bento style) */}
+                  <div className="p-3 bg-stone-100/50 rounded-lg space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-[#c5a880] tracking-wider block">SEO Checklist Analysis</span>
+                    
+                    <div className="space-y-1 text-[10px]">
+                      {/* Check Title Length */}
+                      <div className="flex items-center gap-2">
+                        {seoFormTitle.length >= 30 && seoFormTitle.length <= 60 ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                        )}
+                        <span className={seoFormTitle.length >= 30 && seoFormTitle.length <= 60 ? 'text-gray-600 font-medium' : 'text-amber-800 font-light'}>
+                          Title Length: {seoFormTitle.length}/60 chars ({seoFormTitle.length >= 30 && seoFormTitle.length <= 60 ? 'Optimal' : 'Aim for 30-60 characters'})
+                        </span>
+                      </div>
+
+                      {/* Check Description Length */}
+                      <div className="flex items-center gap-2">
+                        {seoFormDescription.length >= 120 && seoFormDescription.length <= 165 ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                        )}
+                        <span className={seoFormDescription.length >= 120 && seoFormDescription.length <= 165 ? 'text-gray-600 font-medium' : 'text-amber-800 font-light'}>
+                          Description Length: {seoFormDescription.length}/160 chars ({seoFormDescription.length >= 120 && seoFormDescription.length <= 165 ? 'Optimal' : 'Aim for 120-160 characters'})
+                        </span>
+                      </div>
+
+                      {/* Google Crawler Link Badge */}
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                        <span>Dynamic injection active across all site routers</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

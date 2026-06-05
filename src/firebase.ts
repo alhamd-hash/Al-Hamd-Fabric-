@@ -14,7 +14,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Order, Review, OrderStatus, HomeBanner, Product, Collection, Category, MarketingSettings } from './types';
+import { Order, Review, OrderStatus, HomeBanner, Product, Collection, Category, MarketingSettings, SeoSettings } from './types';
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
@@ -427,6 +427,33 @@ export function listenToMarketingSettings(onUpdate: (settings: MarketingSettings
       onError(error);
     } else {
       handleFirestoreError(error, OperationType.GET, `${SETTINGS_PATH}/marketing_pixel`);
+    }
+  });
+}
+
+// --- SEO Settings CRUD ---
+export async function saveSeoSettingsToFirestore(settings: SeoSettings): Promise<void> {
+  const docRef = doc(db, SETTINGS_PATH, settings.id);
+  try {
+    await setDoc(docRef, removeUndefinedFields(settings));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${SETTINGS_PATH}/${settings.id}`);
+  }
+}
+
+export function listenToSeoSettings(onUpdate: (settings: SeoSettings | null) => void, onError?: (err: Error) => void) {
+  const docRef = doc(db, SETTINGS_PATH, 'seo_config');
+  return onSnapshot(docRef, (snapshot) => {
+    if (snapshot.exists()) {
+      onUpdate(snapshot.data() as SeoSettings);
+    } else {
+      onUpdate(null);
+    }
+  }, (error) => {
+    if (onError) {
+      onError(error);
+    } else {
+      handleFirestoreError(error, OperationType.GET, `${SETTINGS_PATH}/seo_config`);
     }
   });
 }

@@ -12,7 +12,7 @@ import {
   getStoredOrders, saveStoredOrders,
   getStoredReviews, saveStoredReviews,
   getStoredSubscriptions, saveStoredSubscriptions,
-  formatPKR, calculateDeliveryCharges
+  formatPKR, calculateDeliveryCharges, getProductSlug
 } from './utils';
 import {
   listenToOrders,
@@ -100,6 +100,7 @@ export default function App() {
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [collectionCategoryFilter, setCollectionCategoryFilter] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [pendingProductSlug, setPendingProductSlug] = useState<string | null>(null);
 
   // Search input state
   const [searchQuery, setSearchQuery] = useState('');
@@ -270,6 +271,154 @@ export default function App() {
   useEffect(() => {
     trackPageView();
   }, [currentView, selectedProductId]);
+
+  // --- Dynamic SEO Router & Sync Hooks ---
+  // Helper to parse current browser URL pathname to state configuration
+  const parseUrlToState = () => {
+    const path = window.location.pathname;
+    if (path.startsWith('/products/')) {
+      const slug = path.substring('/products/'.length);
+      return { type: 'product', payload: slug };
+    } else if (path.startsWith('/collections/')) {
+      const colId = path.substring('/collections/'.length);
+      return { type: 'collection', payload: colId };
+    } else if (path.startsWith('/categories/')) {
+      const catName = decodeURIComponent(path.substring('/categories/'.length));
+      return { type: 'category', payload: catName };
+    } else if (path === '/about') {
+      return { type: 'about' };
+    } else if (path === '/contact') {
+      return { type: 'contact' };
+    } else if (path === '/checkout') {
+      return { type: 'checkout' };
+    } else if (path === '/admin') {
+      return { type: 'admin' };
+    }
+    return { type: 'home' };
+  };
+
+  const applyParsedState = (parsed: { type: string; payload?: string }) => {
+    if (parsed.type === 'product') {
+      // Defer-lookup since products load asynchronously from Firestore
+      setPendingProductSlug(parsed.payload || null);
+    } else {
+      setSelectedProductId(null);
+      setPendingProductSlug(null);
+      if (parsed.type === 'collection') {
+        setCurrentView('collection');
+        setSelectedCollectionId(parsed.payload || null);
+        setCollectionCategoryFilter(null);
+      } else if (parsed.type === 'category') {
+        setCurrentView('category');
+        setSelectedCategoryName(parsed.payload || null);
+      } else if (parsed.type === 'about') {
+        setCurrentView('about');
+      } else if (parsed.type === 'contact') {
+        setCurrentView('contact');
+      } else if (parsed.type === 'checkout') {
+        setCurrentView('checkout');
+      } else if (parsed.type === 'admin') {
+        setCurrentView('admin');
+      } else {
+        setCurrentView('home');
+        setSelectedCollectionId(null);
+        setSelectedCategoryName(null);
+        setCollectionCategoryFilter(null);
+      }
+    }
+  };
+
+  // Helper helper to dynamically inject or update metadata tags for premium SEO search indexing
+  const updateMetaDescription = (content: string) => {
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'description');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', content);
+  };
+
+  // 1. Bidirectional URL -> State Synchronizer
+  useEffect(() => {
+    const handlePopState = () => {
+      const parsed = parseUrlToState();
+      applyParsedState(parsed);
+    };
+    window.addEventListener('popstate', handlePopState);
+    
+    // Initial sync
+    const parsed = parseUrlToState();
+    applyParsedState(parsed);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  // 2. Reactively resolve pending product details once Firestore fetches all entries
+  useEffect(() => {
+    if (pendingProductSlug && products.length > 0) {
+      const matched = products.find(p => getProductSlug(p.name) === pendingProductSlug);
+      if (matched) {
+        setSelectedProductId(matched.id);
+        setPendingProductSlug(null);
+      }
+    }
+  }, [products, pendingProductSlug]);
+
+  // 3. State -> URL & SEO metadata Tags Synchronizer
+  useEffect(() => {
+    let targetPath = '/';
+    let targetTitle = 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics';
+    let targetDesc = "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits. Real-time updates direct from our database.";
+
+    if (selectedProductId) {
+      const prod = products.find(p => p.id === selectedProductId);
+      if (prod) {
+        const slug = getProductSlug(prod.name);
+        targetPath = `/products/${slug}`;
+        targetTitle = `${prod.name} | Al-Hamd Fabrics Lahore`;
+        targetDesc = prod.shortDetails || prod.description || `Buy high-quality ${prod.name} at Al-Hamd Fabrics, Lahore's best premium unstitched fabrics store. Check live stock, reviews, and pricing.`;
+      }
+    } else if (currentView === 'collection' && selectedCollectionId) {
+      const col = collections.find(c => c.id === selectedCollectionId);
+      if (col) {
+        targetPath = `/collections/${selectedCollectionId}`;
+        targetTitle = `${col.name} Collection | Al-Hamd Fabrics Lahore`;
+        targetDesc = col.description || `Shop the exclusive ${col.name} collection at Al-Hamd Fabrics Lahore. Dynamic online checkout and premium materials.`;
+      }
+    } else if (currentView === 'category' && selectedCategoryName) {
+      targetPath = `/categories/${encodeURIComponent(selectedCategoryName)}`;
+      targetTitle = `${selectedCategoryName} | Al-Hamd Fabrics Lahore`;
+      targetDesc = `Discover premium fabrics, lawn suits, gents cotton suits, and unstitched suits in our ${selectedCategoryName} category. Fast nationwide delivery.`;
+    } else if (currentView === 'about') {
+      targetPath = '/about';
+      targetTitle = 'About Us | Al-Hamd Fabrics Lahore';
+      targetDesc = 'Al-Hamd Fabrics represents Pakistani heritage in premium unstitched lawn, linen, khaddar, and gents pure Giza cotton fabrics. Serving customers worldwide.';
+    } else if (currentView === 'contact') {
+      targetPath = '/contact';
+      targetTitle = 'Contact Us | Al-Hamd Fabrics Lahore';
+      targetDesc = 'Contact Al-Hamd Fabrics Lahore for order track help, wholesale enquiries, and custom product catalog. We are located in Lahore, Pakistan.';
+    } else if (currentView === 'checkout') {
+      targetPath = '/checkout';
+      targetTitle = 'Verify Purchase & Checkout | Al-Hamd Fabrics';
+      targetDesc = 'Secure checkout portal for Al-Hamd Fabrics Lahore. Please complete your shipping info to confirm order with COD (Cash on Delivery).';
+    } else if (currentView === 'admin') {
+      targetPath = '/admin';
+      targetTitle = 'Secure Admin Console | Al-Hamd Fabrics';
+      targetDesc = 'Al-Hamd Fabrics store inventory, collections, orders, reviews, and Pixel manager dashboard.';
+    }
+
+    // Update Browser title & meta tag
+    document.title = targetTitle;
+    updateMetaDescription(targetDesc);
+
+    // Apply push/replace state to keep route synced cleanly without disturbing user focus
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections]);
 
   // Trigger Meta ViewContent on focused product load/details view
   useEffect(() => {

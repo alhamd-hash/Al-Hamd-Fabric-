@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import {
   ShoppingBag, Trash2, X, Star, Calendar, MessageSquare, Menu, Globe, Phone,
-  MapPin, Heart, Share2, Facebook, Instagram, Send, Sparkles, CheckCircle2, ChevronRight, ArrowRight, CornerDownRight, Loader, Tag, ShieldAlert
+  MapPin, Heart, Share2, Facebook, Instagram, Send, Sparkles, CheckCircle2, ChevronRight, ArrowRight, CornerDownRight, Loader, Tag, ShieldAlert,
+  Lock, AlertTriangle
 } from 'lucide-react';
 import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, Category } from './types';
 import {
@@ -60,7 +61,7 @@ import ProductCard from './components/ProductCard';
 import ProductDetails from './components/ProductDetails';
 import CheckoutForm from './components/CheckoutForm';
 import TrackOrderModal from './components/TrackOrderModal';
-import AdminPanel from './components/AdminPanel';
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
 
 export default function App() {
   // Global Persisted States (Local Storage / Defaults Fallback)
@@ -92,6 +93,9 @@ export default function App() {
 
   // Navigation Routing
   const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'checkout' | 'admin' | 'collection' | 'category'>('home');
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [adminPasswordValue, setAdminPasswordValue] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState('');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [collectionCategoryFilter, setCollectionCategoryFilter] = useState<string | null>(null);
@@ -346,6 +350,11 @@ export default function App() {
     // Always reset product details view when navigating anywhere
     setSelectedProductId(null);
 
+    if (view !== 'admin') {
+      setAdminPasswordValue('');
+      setAdminLoginError('');
+    }
+
     if (view === 'product') {
       if (payload) {
         setSelectedProductId(payload);
@@ -505,6 +514,15 @@ export default function App() {
   };
 
   // --- Admin actions ---
+  const handleAdminLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPasswordValue === 'alHamdNeweb') {
+      setIsAdminAuthenticated(true);
+      setAdminLoginError('');
+    } else {
+      setAdminLoginError('Astaghfirullah! Invalid Password. Please check and try again.');
+    }
+  };
   const handleRestoreDefaults = async () => {
     try {
       // 1. Write collections
@@ -855,36 +873,104 @@ export default function App() {
           )
         ) : currentView === 'admin' ? (
           /* VIEW 3: ADMIN CONSOLE */
-          <AdminPanel
-            products={products}
-            collections={collections}
-            orders={orders}
-            reviews={reviews}
-            subscriptions={subscriptions}
-            notifications={notifications}
-            banners={banners}
-            onAddProduct={handleAddProduct}
-            onEditProduct={handleEditProduct}
-            onDeleteProduct={handleDeleteProduct}
-            onAddCollection={handleAddCollection}
-            onEditCollection={handleEditCollection}
-            onDeleteCollection={handleDeleteCollection}
-            onUpdateOrderStatus={handleUpdateOrderStatus}
-            onUpdatePaymentStatus={handleUpdateOrderPaymentStatus}
-            onMarkOrderReceived={handleMarkOrderReceived}
-            onApproveReview={handleApproveReview}
-            onRejectReview={handleRejectReview}
-            onSendProductNotification={handleSendProductNotification}
-            onAddBanner={handleAddBanner}
-            onUpdateBanner={handleUpdateBanner}
-            onDeleteBanner={handleDeleteBanner}
-            categories={categories}
-            onAddCategory={handleAddCategory}
-            onEditCategory={handleEditCategory}
-            onDeleteCategory={handleDeleteCategory}
-            onClose={() => handleNavigation('home')}
-            onRestoreDefaults={handleRestoreDefaults}
-          />
+          !isAdminAuthenticated ? (
+            <div className="max-w-md mx-auto py-24 px-4 text-center space-y-6 animate-fade-in" id="admin-login-screen">
+              <div className="w-16 h-16 bg-[#1e152a] rounded-full flex items-center justify-center border-2 border-[#c5a880] mx-auto text-[#c5a880] shadow-md">
+                <Lock size={26} />
+              </div>
+
+              <div className="space-y-1">
+                <h2 className="font-serif text-2xl font-bold text-[#1e152a]">Al-Hamd Fabrics Admin Console</h2>
+                <p className="text-gray-400 text-xs uppercase tracking-widest font-semibold">Strict Authorised Entry Only</p>
+              </div>
+
+              <form onSubmit={handleAdminLoginSubmit} className="bg-white border border-gray-100 rounded-xl p-6 shadow-md text-left space-y-4">
+                {adminLoginError && (
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-700 text-xs rounded font-medium flex items-center gap-2">
+                    <AlertTriangle size={14} className="shrink-0" />
+                    <span>{adminLoginError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Enter Admin Security Key</label>
+                  <input
+                    type="password"
+                    placeholder="••••••••••••••"
+                    value={adminPasswordValue}
+                    onChange={(e) => setAdminPasswordValue(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2.5 bg-[#faf9f6] border border-gray-200 focus:border-[#c5a880] rounded focus:outline-none text-xs text-center tracking-widest"
+                    id="admin-passfield"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleNavigation('home')}
+                    className="flex-1 py-2.5 border border-gray-200 text-gray-700 text-xs font-semibold rounded hover:bg-gray-50 uppercase cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-[#1e152a] text-white text-xs font-bold rounded hover:bg-[#c5a880] hover:text-black transition-colors uppercase tracking-wider cursor-pointer shadow-sm"
+                    id="admin-login-submit"
+                  >
+                    Log In
+                  </button>
+                </div>
+              </form>
+
+              <p className="text-[10px] text-gray-400">
+                Note: This terminal logs IP, login timestamps, and modifications automatically for security and auditing.
+              </p>
+            </div>
+          ) : (
+            <Suspense fallback={
+              <div className="min-h-[400px] flex flex-col items-center justify-center p-8 space-y-4 text-center text-[#f1ebd9]" id="admin-lazy-loading-spinner">
+                <Loader className="animate-spin text-[#c5a880] mb-2" size={28} />
+                <span className="text-xs font-medium tracking-wide uppercase">Securely Downloading Admin Panel Chunk...</span>
+              </div>
+            }>
+              <AdminPanel
+                products={products}
+                collections={collections}
+                orders={orders}
+                reviews={reviews}
+                subscriptions={subscriptions}
+                notifications={notifications}
+                banners={banners}
+                onAddProduct={handleAddProduct}
+                onEditProduct={handleEditProduct}
+                onDeleteProduct={handleDeleteProduct}
+                onAddCollection={handleAddCollection}
+                onEditCollection={handleEditCollection}
+                onDeleteCollection={handleDeleteCollection}
+                onUpdateOrderStatus={handleUpdateOrderStatus}
+                onUpdatePaymentStatus={handleUpdateOrderPaymentStatus}
+                onMarkOrderReceived={handleMarkOrderReceived}
+                onApproveReview={handleApproveReview}
+                onRejectReview={handleRejectReview}
+                onSendProductNotification={handleSendProductNotification}
+                onAddBanner={handleAddBanner}
+                onUpdateBanner={handleUpdateBanner}
+                onDeleteBanner={handleDeleteBanner}
+                categories={categories}
+                onAddCategory={handleAddCategory}
+                onEditCategory={handleEditCategory}
+                onDeleteCategory={handleDeleteCategory}
+                onClose={() => {
+                  setIsAdminAuthenticated(false);
+                  handleNavigation('home');
+                }}
+                onRestoreDefaults={handleRestoreDefaults}
+                isAuthenticatedProp={isAdminAuthenticated}
+                onLogout={() => setIsAdminAuthenticated(false)}
+              />
+            </Suspense>
+          )
         ) : currentView === 'about' ? (
           /* VIEW 4: ABOUT US VIEW */
           <div className="max-w-4xl mx-auto px-4 py-16 space-y-12 animate-fade-in text-gray-700 leading-relaxed text-sm">

@@ -37,6 +37,8 @@ interface AdminPanelProps {
   onDeleteBanner: (bannerId: string) => void;
   onClose: () => void;
   onRestoreDefaults?: () => Promise<void>;
+  isAuthenticatedProp?: boolean;
+  onLogout?: () => void;
 }
 
 export default function AdminPanel({
@@ -67,13 +69,20 @@ export default function AdminPanel({
   onUpdateBanner,
   onDeleteBanner,
   onClose,
-  onRestoreDefaults
+  onRestoreDefaults,
+  isAuthenticatedProp = false,
+  onLogout
 }: AdminPanelProps) {
   // Authentication State
   const [password, setPassword] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(isAuthenticatedProp);
   const [loginError, setLoginError] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
+
+  // Sync state if prop changes
+  React.useEffect(() => {
+    setIsAuthenticated(isAuthenticatedProp);
+  }, [isAuthenticatedProp]);
 
   // Dashboard Sub-views
   const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products' | 'marketing_pixel'>('orders');
@@ -293,6 +302,9 @@ export default function AdminPanel({
     setIsAuthenticated(false);
     setPassword('');
     setLoginError('');
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   // Date Filtering Logic

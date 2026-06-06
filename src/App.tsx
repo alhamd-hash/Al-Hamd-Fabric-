@@ -112,6 +112,7 @@ export default function App() {
   const [cart, setCart] = useState<{ product: Product; quantity: number; selectedImage: string }[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isTrackOpen, setIsTrackOpen] = useState(false);
+  const [lastSubmittedOrderId, setLastSubmittedOrderId] = useState<string | null>(null);
 
   // Wishlist list
   const [wishlist, setWishlist] = useState<string[]>([]);
@@ -482,12 +483,13 @@ export default function App() {
   const handleAddToCart = (product: Product, quantity: number, selectedImage: string) => {
     setCart((prev) => {
       const existingIdx = prev.findIndex(item => item.product.id === product.id && item.selectedImage === selectedImage);
+      const currentStock = product.inventory !== undefined ? product.inventory : 5;
       if (existingIdx > -1) {
         const updated = [...prev];
-        updated[existingIdx].quantity += quantity;
+        updated[existingIdx].quantity = Math.min(currentStock, updated[existingIdx].quantity + quantity);
         return updated;
       }
-      return [...prev, { product, quantity, selectedImage }];
+      return [...prev, { product, quantity: Math.min(currentStock, quantity), selectedImage }];
     });
     setIsCartOpen(true);
 
@@ -502,7 +504,11 @@ export default function App() {
   const handleUpdateCartQty = (idx: number, amount: number) => {
     setCart((prev) => {
       const updated = [...prev];
-      updated[idx].quantity = Math.max(1, updated[idx].quantity + amount);
+      if (updated[idx]) {
+        const product = updated[idx].product;
+        const currentStock = product.inventory !== undefined ? product.inventory : 5;
+        updated[idx].quantity = Math.max(1, Math.min(currentStock, updated[idx].quantity + amount));
+      }
       return updated;
     });
   };
@@ -517,8 +523,17 @@ export default function App() {
 
   // Direct checkout option "Order Now" from product details
   const handleOrderNow = (product: Product, quantity: number, selectedImage: string) => {
-    // Add to cart first
-    setCart([{ product, quantity, selectedImage }]);
+    // Add of the item to the cart (instead of replacing it)
+    setCart((prev) => {
+      const existingIdx = prev.findIndex(item => item.product.id === product.id && item.selectedImage === selectedImage);
+      const currentStock = product.inventory !== undefined ? product.inventory : 5;
+      if (existingIdx > -1) {
+        const updated = [...prev];
+        updated[existingIdx].quantity = Math.min(currentStock, updated[existingIdx].quantity + quantity);
+        return updated;
+      }
+      return [...prev, { product, quantity: Math.min(currentStock, quantity), selectedImage }];
+    });
     // Immediately navigate to checkout view
     handleNavigation('checkout');
     setIsCartOpen(false);
@@ -530,6 +545,7 @@ export default function App() {
 
     // Always reset product details view when navigating anywhere
     setSelectedProductId(null);
+    setLastSubmittedOrderId(null);
 
     if (view !== 'admin') {
       setAdminPasswordValue('');
@@ -572,9 +588,26 @@ export default function App() {
     // Save synchronously as permanent entry in Firestore DB
     try {
       await addOrderToFirestore(newOrder);
+
+      // Decrement inventory for each item purchased
+      if (newOrder.items && Array.isArray(newOrder.items)) {
+        for (const item of newOrder.items) {
+          const prod = products.find(p => p.id === item.productId);
+          if (prod) {
+            const defaultStock = prod.inventory !== undefined ? prod.inventory : 5;
+            const updatedInventory = Math.max(0, defaultStock - item.quantity);
+            const updatedProduct = { ...prod, inventory: updatedInventory };
+            await updateProductInFirestore(updatedProduct.id, updatedProduct);
+          }
+        }
+      }
     } catch (err) {
-      console.error('Failed to publish order to Firestore database:', err);
+      console.error('Failed to publish order or update inventory in Firestore:', err);
     }
+
+    // Clear cart upon successful checkout
+    handleClearCart();
+    setLastSubmittedOrderId(orderId);
 
     // Track Purchase Meta Event
     try {
@@ -822,14 +855,39 @@ export default function App() {
 
   const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
     if (status === 'Cancelled') {
-      const updated = orders.filter(o => o.id !== orderId);
+      const targetOrder = orders.find(o => o.id === orderId);
+      if (targetOrder && targetOrder.items && Array.isArray(targetOrder.items)) {
+        for (const item of targetOrder.items) {
+          const prod = products.find(p => p.id === item.productId);
+          if (prod) {
+            const defaultStock = prod.inventory !== undefined ? prod.inventory : 5;
+            const updatedInventory = defaultStock + item.quantity;
+            const updatedProduct = { ...prod, inventory: updatedInventory };
+            try {
+              await updateProductInFirestore(updatedProduct.id, updatedProduct);
+            } catch (err) {
+              console.error(`Failed to restore stock for product ${prod.id} on cancellation:`, err);
+            }
+          }
+        }
+      }
+
+      const updated = orders.map(o => {
+        if (o.id === orderId) {
+          return { ...o, status: 'Cancelled' as OrderStatus };
+        }
+        return o;
+      });
       setOrders(updated);
       saveStoredOrders(updated);
 
-      try {
-        await deleteOrderFromFirestore(orderId);
-      } catch (err) {
-        console.error('Failed to delete cancelled order from Firestore database:', err);
+      const updatedOrder = updated.find(o => o.id === orderId);
+      if (updatedOrder) {
+        try {
+          await updateOrderInFirestore(orderId, updatedOrder);
+        } catch (err) {
+          console.error('Failed to update order status to Cancelled in Firestore database:', err);
+        }
       }
     } else {
       const updated = orders.map(o => {
@@ -857,6 +915,62 @@ export default function App() {
           console.error('Failed to update order status in Firestore database:', err);
         }
       }
+    }
+  };
+
+  const handleUserCancelEntireOrder = async (orderId: string) => {
+    await handleUpdateOrderStatus(orderId, 'Cancelled');
+  };
+
+  const handleUserCancelOrderItem = async (orderId: string, productId: string) => {
+    const targetOrder = orders.find(o => o.id === orderId);
+    if (!targetOrder) return;
+
+    const itemToCancel = targetOrder.items.find(item => item.productId === productId);
+    if (!itemToCancel) return;
+
+    // Restore inventory/stock for this specific item
+    const prod = products.find(p => p.id === productId);
+    if (prod) {
+      const defaultStock = prod.inventory !== undefined ? prod.inventory : 5;
+      const updatedInventory = defaultStock + itemToCancel.quantity;
+      const updatedProduct = { ...prod, inventory: updatedInventory };
+      try {
+        await updateProductInFirestore(updatedProduct.id, updatedProduct);
+      } catch (err) {
+        console.error(`Failed to restore stock for product ${productId} on item cancellation:`, err);
+      }
+    }
+
+    const updatedItems = targetOrder.items.filter(item => item.productId !== productId);
+
+    if (updatedItems.length === 0) {
+      await handleUpdateOrderStatus(orderId, 'Cancelled');
+      return;
+    }
+
+    // Re-calculate order totals
+    const newSubtotal = updatedItems.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
+    const isFreeDelivery = newSubtotal > 6000;
+    const newDeliveryCharges = isFreeDelivery ? 0 : 300;
+    const newTotal = newSubtotal + newDeliveryCharges;
+
+    const updatedOrder: Order = {
+      ...targetOrder,
+      items: updatedItems,
+      subtotal: newSubtotal,
+      deliveryCharges: newDeliveryCharges,
+      total: newTotal
+    };
+
+    const updatedOrders = orders.map(o => o.id === orderId ? updatedOrder : o);
+    setOrders(updatedOrders);
+    saveStoredOrders(updatedOrders);
+
+    try {
+      await updateOrderInFirestore(orderId, updatedOrder);
+    } catch (err) {
+      console.error(`Failed to update order ${orderId} on item cancellation in Firestore:`, err);
     }
   };
 
@@ -1032,10 +1146,28 @@ export default function App() {
             onAddToCart={handleAddToCart}
             onOrderNow={handleOrderNow}
             onSubmitReview={handleSubmitReview}
+            subscriptions={subscriptions}
+            onSubscribe={async (name: string, email: string) => {
+              const trimmedEmail = email.trim();
+              const trimmedName = name.trim();
+              if (subscriptions.some(s => s.email.toLowerCase() === trimmedEmail.toLowerCase())) {
+                return { success: false, message: '💡 You have already subscribed with this email address.' };
+              }
+              const newSub: Subscription = {
+                id: `sub-${Date.now()}`,
+                customerName: trimmedName,
+                email: trimmedEmail,
+                createdAt: new Date().toISOString()
+              };
+              const updatedSubs = [newSub, ...subscriptions];
+              setSubscriptions(updatedSubs);
+              saveStoredSubscriptions(updatedSubs);
+              return { success: true, message: 'Alhamdulillah! You have successfully subscribed for restock alerts on this item. We will notify you immediately when it becomes available!' };
+            }}
           />
         ) : currentView === 'checkout' ? (
           /* VIEW 2: CHECKOUT PAGE */
-          cart.length === 0 ? (
+          (cart.length === 0 && !lastSubmittedOrderId) ? (
             <div className="max-w-md mx-auto py-24 px-4 text-center space-y-4">
               <span className="text-4xl text-gray-300">🛒</span>
               <h2 className="font-serif text-xl font-bold text-gray-800">Your Shopping bag is empty</h2>
@@ -1950,6 +2082,8 @@ export default function App() {
           allOrders={orders}
           onClose={() => setIsTrackOpen(false)}
           onMarkOrderReceived={handleMarkOrderReceived}
+          onCancelEntireOrder={handleUserCancelEntireOrder}
+          onCancelOrderItem={handleUserCancelOrderItem}
         />
       )}
 

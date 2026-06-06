@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Search, FileText, Calendar, CheckCircle2, ChevronRight, Truck, Info, ShieldCheck } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { formatPKR } from '../utils';
@@ -7,6 +7,8 @@ interface TrackOrderModalProps {
   onClose: () => void;
   allOrders: Order[];
   onMarkOrderReceived: (orderId: string) => void;
+  onCancelEntireOrder?: (orderId: string) => Promise<void>;
+  onCancelOrderItem?: (orderId: string, productId: string) => Promise<void>;
 }
 
 const STATUS_STEPS: { status: OrderStatus; label: string; desc: string }[] = [
@@ -17,9 +19,35 @@ const STATUS_STEPS: { status: OrderStatus; label: string; desc: string }[] = [
   { status: 'Delivered', label: 'Delivered Successfully', desc: 'Package handed over, thank you!' }
 ];
 
-export default function TrackOrderModal({ onClose, allOrders, onMarkOrderReceived }: TrackOrderModalProps) {
+export default function TrackOrderModal({ 
+  onClose, 
+  allOrders, 
+  onMarkOrderReceived, 
+  onCancelEntireOrder, 
+  onCancelOrderItem 
+}: TrackOrderModalProps) {
   const [orderSearch, setOrderSearch] = useState('');
   const [searchedOrders, setSearchedOrders] = useState<Order[] | null>(null);
+
+  const [confirmState, setConfirmState] = useState<{
+    type: 'entire' | 'item';
+    orderId: string;
+    productId?: string;
+    productName?: string;
+  } | null>(null);
+
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Sync searched orders when top allOrders changes (due to real-time snapshot sync)
+  useEffect(() => {
+    if (searchedOrders && searchedOrders.length > 0) {
+      const updated = searchedOrders.map(so => {
+        const latest = allOrders.find(o => o.id === so.id);
+        return latest || so;
+      });
+      setSearchedOrders(updated);
+    }
+  }, [allOrders]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +70,7 @@ export default function TrackOrderModal({ onClose, allOrders, onMarkOrderReceive
 
   return (
     <div className="fixed inset-0 bg-[#1e152a]/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 sm:p-6 animate-fade-in" id="track-order-modal">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100">
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100 relative">
         
         {/* Header */}
         <div className="p-5 border-b border-gray-100 bg-[#faf9f6] flex items-center justify-between">
@@ -225,6 +253,55 @@ export default function TrackOrderModal({ onClose, allOrders, onMarkOrderReceive
                           </div>
                         )}
 
+                        {/* Customer Self-Cancellation & Amendment controls (within 30 mins window) */}
+                        {!isCancelled && !order.isReceived && (() => {
+                          const orderTime = new Date(order.createdAt).getTime();
+                          const currentTime = Date.now();
+                          const elapsedMinutes = Math.max(0, Math.floor(Math.abs(currentTime - orderTime) / (1000 * 60)));
+                          const canCancel = elapsedMinutes < 30;
+                          const minsLeft = 30 - elapsedMinutes;
+
+                          return (
+                            <div className={`p-4 rounded-xl border text-xs text-left space-y-3 ${
+                              canCancel 
+                                ? 'bg-amber-50/55 border-amber-200/50 text-amber-900 shadow-3xs' 
+                                : 'bg-gray-50 border-gray-150 text-gray-500'
+                            }`}>
+                              <div className="flex items-start gap-2.5">
+                                <span className="text-base shrink-0 mt-0.5">{canCancel ? '⏱️' : '🔒'}</span>
+                                <div className="flex-1">
+                                  <strong className="block font-serif text-sm">
+                                    {canCancel ? 'Order Amendment / Cancellation Period' : 'Modification Period Closed'}
+                                  </strong>
+                                  <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                                    {canCancel 
+                                      ? `You can cancel this entire order or individual items now. Placed ${elapsedMinutes} minutes ago (${minsLeft} mins left).` 
+                                      : 'Your unstitched fabric suitability has passed the 30-minute self-modification window. It is locked and being prepared for courier dispatch. To cancel, please contact Administrator Zafar Iqbal at 03053131133.'
+                                    }
+                                  </p>
+                                </div>
+                              </div>
+
+                              {canCancel && (
+                                <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-200/20">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConfirmState({
+                                        type: 'entire',
+                                        orderId: order.id
+                                      });
+                                    }}
+                                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all shadow-3xs hover:shadow-xs cursor-pointer"
+                                  >
+                                    Cancel Entire Order
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
                         {/* HIGH-IMPACT GREEN BUTTON "YES, RECEIVED" WHEN STATUS IS DELIVERED AND NOT CONFIRMED YET */}
                         {isFullyDelivered && !order.isReceived && (
                           <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl space-y-3 shadow-3xs">
@@ -268,30 +345,56 @@ export default function TrackOrderModal({ onClose, allOrders, onMarkOrderReceive
                         <div className="border-t border-gray-100 pt-3 text-xs space-y-2">
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Items Ordered</span>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {order.items.map((item, id) => (
-                              <div key={id} className="bg-white border border-gray-100 p-2 rounded-xl flex items-center gap-3 font-sans shadow-3xs hover:border-[#c5a880]/30 transition-colors">
-                                {item.selectedImage ? (
-                                  <img
-                                    src={item.selectedImage}
-                                    alt={item.productName}
-                                    className="w-12 h-16 object-cover bg-stone-100 rounded border border-gray-250 shrink-0"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <div className="w-12 h-16 bg-stone-100 border border-gray-200 rounded shrink-0 flex items-center justify-center text-[10px] font-bold text-gray-450 font-serif">
-                                    Suit
+                            {order.items.map((item, id) => {
+                              const orderTime = new Date(order.createdAt).getTime();
+                              const currentTime = Date.now();
+                              const elapsedMinutes = Math.max(0, Math.floor((currentTime - orderTime) / (1000 * 60)));
+                              const canCancelItem = elapsedMinutes < 30 && !isCancelled && !order.isReceived;
+
+                              return (
+                                <div key={id} className="bg-white border border-gray-100 p-2.5 rounded-xl flex items-center gap-3 font-sans shadow-3xs hover:border-[#c5a880]/30 transition-all relative group">
+                                  {item.selectedImage ? (
+                                    <img
+                                      src={item.selectedImage}
+                                      alt={item.productName}
+                                      className="w-12 h-16 object-cover bg-stone-100 rounded border border-gray-250 shrink-0"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-16 bg-stone-100 border border-gray-200 rounded shrink-0 flex items-center justify-center text-[10px] font-bold text-gray-450 font-serif">
+                                      Suit
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex-1 pr-6">
+                                    <p className="font-medium text-gray-800 text-xs line-clamp-2 leading-tight">
+                                      {item.productName}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                      Qty: <strong className="text-gray-700">{item.quantity}</strong> × {formatPKR(item.price)}
+                                    </p>
                                   </div>
-                                )}
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-medium text-gray-800 text-xs line-clamp-2 leading-tight">
-                                    {item.productName}
-                                  </p>
-                                  <p className="text-[10px] text-gray-400 mt-1">
-                                    Qty: <strong className="text-gray-700">{item.quantity}</strong> × {formatPKR(item.price)}
-                                  </p>
+
+                                  {/* Item cancellation button */}
+                                  {canCancelItem && (
+                                    <button
+                                      type="button"
+                                      title="Cancel this specific item"
+                                      onClick={() => {
+                                        setConfirmState({
+                                          type: 'item',
+                                          orderId: order.id,
+                                          productId: item.productId,
+                                          productName: item.productName
+                                        });
+                                      }}
+                                      className="absolute top-2 right-2 p-1 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 rounded-full transition-all cursor-pointer shadow-3xs"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  )}
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -309,6 +412,88 @@ export default function TrackOrderModal({ onClose, allOrders, onMarkOrderReceive
         <div className="p-4 bg-gray-50 border-t border-gray-100 text-center text-[10px] text-gray-400">
           In case of delayed dispatches, call direct helpline <strong>03053131133</strong> during active business hours.
         </div>
+
+        {/* Custom Toast Message */}
+        {successToast && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-emerald-600 text-[#f1ebd9] px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 z-55 animate-bounce text-xs font-bold font-sans">
+            <span>✨</span>
+            <span>{successToast}</span>
+            <button onClick={() => setSuccessToast(null)} className="ml-2 hover:text-white font-extrabold cursor-pointer">×</button>
+          </div>
+        )}
+
+        {/* Custom Confirmation Popup Overlay */}
+        {confirmState && (
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-6 animate-fade-in animate-duration-200">
+            <div className="bg-white p-6 rounded-2xl max-w-sm w-full border border-gray-100 shadow-2xl space-y-4 font-sans text-center">
+              <span className="text-3xl">⚠️</span>
+              <h4 className="font-serif font-bold text-base text-[#1e152a]">
+                {confirmState.type === 'entire' ? 'Cancel Entire Order?' : 'Cancel Order Item?'}
+              </h4>
+              <p className="text-xs text-gray-550 leading-relaxed text-left">
+                {confirmState.type === 'entire'
+                  ? 'Are you absolutely sure you want to cancel this entire order? All reserved clothing stock/inventory will be instantly restored back to our shop catalog.'
+                  : `Are you sure you want to cancel "${confirmState.productName}" from your order? This will remove this item, recalculate the bill, and restore stock.`
+                }
+              </p>
+              <div className="flex gap-2.5 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmState(null)}
+                  className="px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold text-gray-500 transition-colors cursor-pointer"
+                >
+                  Go Back
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { type, orderId, productId } = confirmState;
+                    setConfirmState(null);
+                    try {
+                      if (type === 'entire') {
+                        if (onCancelEntireOrder) {
+                          await onCancelEntireOrder(orderId);
+                          setSearchedOrders(prev => prev ? prev.map(o => o.id === orderId ? { ...o, status: 'Cancelled' as OrderStatus } : o) : null);
+                          setSuccessToast('Alhamdulillah! Entire order cancelled successfully and stock restored.');
+                        }
+                      } else {
+                        if (onCancelOrderItem && productId) {
+                          await onCancelOrderItem(orderId, productId);
+                          setSearchedOrders(prev => {
+                            if (!prev) return null;
+                            return prev.map(o => {
+                              if (o.id !== orderId) return o;
+                              const newItems = o.items.filter(it => it.productId !== productId);
+                              if (newItems.length === 0) {
+                                return { ...o, status: 'Cancelled' as OrderStatus, items: [] };
+                              }
+                              const newSubtotal = newItems.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
+                              const isFreeDelivery = newSubtotal > 6000;
+                              const newDeliveryCharges = isFreeDelivery ? 0 : 300;
+                              return {
+                                ...o,
+                                items: newItems,
+                                subtotal: newSubtotal,
+                                deliveryCharges: newDeliveryCharges,
+                                total: newSubtotal + newDeliveryCharges
+                              };
+                            });
+                          });
+                          setSuccessToast('Alhamdulillah! Item removed and catalog stock restored.');
+                        }
+                      }
+                    } catch (err) {
+                      console.error('Error executing cancellation:', err);
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  Yes, Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

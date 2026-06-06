@@ -10,6 +10,8 @@ interface ProductDetailsProps {
   onAddToCart: (product: Product, quantity: number, selectedImage: string) => void;
   onOrderNow: (product: Product, quantity: number, selectedImage: string) => void;
   onSubmitReview: (productId: string, customerName: string, rating: number, comment: string) => void;
+  onSubscribe?: (name: string, email: string) => Promise<{ success: boolean; message: string }>;
+  subscriptions?: any[];
 }
 
 export default function ProductDetails({
@@ -18,7 +20,9 @@ export default function ProductDetails({
   onBack,
   onAddToCart,
   onOrderNow,
-  onSubmitReview
+  onSubmitReview,
+  onSubscribe,
+  subscriptions = []
 }: ProductDetailsProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -26,6 +30,16 @@ export default function ProductDetails({
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSuccessMessage, setReviewSuccessMessage] = useState('');
+
+  // Restock Subscription Alert States
+  const [subscribeName, setSubscribeName] = useState('');
+  const [subscribeEmail, setSubscribeEmail] = useState('');
+  const [subscribeStatus, setSubscribeStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  // Helper and calculations for out of stock checks
+  const currentStock = product.inventory !== undefined ? product.inventory : 5;
+  const isOutOfStock = currentStock <= 0;
 
   // Inventory & Fabric Requirement Calculator States
   const [calcSuitType, setCalcSuitType] = useState<'3pc' | '2pc' | 'shirt' | 'custom'>(product.isLadiesSuit ? '3pc' : '2pc');
@@ -110,6 +124,28 @@ Please let me know if you have this yardage available so I can proceed with the 
     setTimeout(() => {
       setReviewSuccessMessage('');
     }, 8000);
+  };
+
+  const handleSubscribeRestock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subscribeEmail.trim() || !subscribeName.trim()) return;
+    if (!onSubscribe) return;
+    setIsSubscribing(true);
+    setSubscribeStatus(null);
+    try {
+      const res = await onSubscribe(subscribeName, subscribeEmail);
+      if (res.success) {
+        setSubscribeStatus({ type: 'success', message: res.message });
+        setSubscribeName('');
+        setSubscribeEmail('');
+      } else {
+        setSubscribeStatus({ type: 'error', message: res.message });
+      }
+    } catch (err) {
+      setSubscribeStatus({ type: 'error', message: 'Something went wrong. Please check your internet connection and try again.' });
+    } finally {
+      setIsSubscribing(false);
+    }
   };
 
   return (
@@ -210,15 +246,20 @@ Please let me know if you have this yardage available so I can proceed with the 
                 </span>
               </div>
               <div className="text-right">
-                {product.inventory !== undefined ? (
+                {isOutOfStock ? (
+                  <span className="text-red-700 font-extrabold text-xs bg-red-50 px-2.5 py-1.5 rounded-full border border-red-100 flex items-center gap-1.5 justify-end">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    Out of Stock (Request Restock)
+                  </span>
+                ) : product.inventory !== undefined ? (
                   <span className="text-emerald-700 font-extrabold text-xs bg-emerald-50 px-2.5 py-1.5 rounded-full border border-emerald-100 flex items-center gap-1.5 justify-end">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     Stock: {product.inventory} Pcs Available
                   </span>
                 ) : (
-                  <span className="text-emerald-600 font-bold text-xs bg-emerald-50 px-2.5 py-1.5 rounded-full border border-emerald-100 flex items-center gap-1.5 justify-end">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                    In Stock (Available)
+                  <span className="text-emerald-700 font-extrabold text-xs bg-emerald-50 px-2.5 py-1.5 rounded-full border border-emerald-100 flex items-center gap-1.5 justify-end">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Stock: 5 Pcs Available
                   </span>
                 )}
               </div>
@@ -302,51 +343,124 @@ Please let me know if you have this yardage available so I can proceed with the 
           {/* Checkout triggers and actions container */}
           <div className="pt-6 border-t border-gray-100 space-y-4">
             {/* Quantities selector */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-gray-500 uppercase">Quantity:</span>
-              <div className="flex items-center border border-[#e1d9cd] rounded-md bg-white">
-                <button
-                  type="button"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="px-3.5 py-1.5 text-gray-500 hover:bg-gray-100 font-bold transition-all text-sm cursor-pointer"
-                >
-                  -
-                </button>
-                <span className="px-4 text-[#1e152a] font-bold text-sm w-12 text-center">
-                  {quantity}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="px-3.5 py-1.5 text-gray-500 hover:bg-gray-100 font-bold transition-all text-sm cursor-pointer"
-                >
-                  +
-                </button>
+            {!isOutOfStock && (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 uppercase">Quantity:</span>
+                <div className="flex items-center border border-[#e1d9cd] rounded-md bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="px-3.5 py-1.5 text-gray-500 hover:bg-gray-100 font-bold transition-all text-sm cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="px-4 text-[#1e152a] font-bold text-sm w-12 text-center">
+                    {Math.min(currentStock, quantity)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.min(currentStock, quantity + 1))}
+                    className="px-3.5 py-1.5 text-gray-500 hover:bg-gray-100 font-bold transition-all text-sm cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+                {currentStock <= 10 && (
+                  <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/50">
+                    ⚠️ Limited Stock: Only {currentStock} suites left!
+                  </span>
+                )}
+                {quantity > 1 && (
+                  <span className="text-xs font-semibold text-gray-400">
+                    Total: {formatPKR(product.price * Math.min(currentStock, quantity))}
+                  </span>
+                )}
               </div>
-              {quantity > 1 && (
-                <span className="text-xs font-semibold text-gray-400">
-                  Total item amount: {formatPKR(product.price * quantity)}
-                </span>
-              )}
-            </div>
+            )}
 
             {/* CTA Buy/Cart Buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
               <button
-                onClick={() => onAddToCart(product, quantity, imagesList[selectedImageIndex])}
-                className="w-full py-4 px-6 border-2 border-[#1e152a] text-[#1e152a] hover:bg-[#1e152a] hover:text-white font-bold uppercase text-xs tracking-wider transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-2xs rounded-xs"
+                disabled={isOutOfStock}
+                onClick={() => onAddToCart(product, Math.min(currentStock, quantity), imagesList[selectedImageIndex])}
+                className={`w-full py-4 px-6 border-2 font-bold uppercase text-xs tracking-wider transition-all flex items-center justify-center gap-2.5 rounded-xs ${
+                  isOutOfStock 
+                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed' 
+                    : 'border-2 border-[#1e152a] text-[#1e152a] hover:bg-[#1e152a] hover:text-white cursor-pointer shadow-2xs'
+                }`}
               >
                 <ShoppingCart size={16} />
-                Add To Cart
+                {isOutOfStock ? 'Sold Out' : 'Add To Cart'}
               </button>
               
               <button
-                onClick={() => onOrderNow(product, quantity, imagesList[selectedImageIndex])}
-                className="w-full py-4 px-6 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-extrabold uppercase text-xs tracking-widest transition-all shadow-md transform active:scale-98 flex items-center justify-center gap-2.5 cursor-pointer rounded-xs"
+                disabled={isOutOfStock}
+                onClick={() => onOrderNow(product, Math.min(currentStock, quantity), imagesList[selectedImageIndex])}
+                className={`w-full py-4 px-6 font-extrabold uppercase text-xs tracking-widest transition-all shadow-md transform active:scale-98 flex items-center justify-center gap-2.5 rounded-xs ${
+                  isOutOfStock 
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
+                    : 'bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black cursor-pointer'
+                }`}
               >
-                🔥 Order Now (Direct Checkout)
+                🔥 {isOutOfStock ? 'Out of Stock' : 'Order Now (Direct Checkout)'}
               </button>
             </div>
+
+            {/* Restock Notification Box */}
+            {isOutOfStock && (
+              <div id="restock-notification-form" className="bg-amber-50/40 p-5 rounded-2xl border border-[#c5a880]/30 mt-6 space-y-4 animate-fade-in text-left">
+                <div className="flex items-center gap-2 pb-2 border-b border-[#c5a880]/20">
+                  <span className="text-xl">📬</span>
+                  <div>
+                    <h4 className="font-serif font-bold text-sm text-[#1e152a] tracking-tight">
+                      Subscribe to Restock Alerts
+                    </h4>
+                    <p className="text-[10px] text-gray-500 font-medium leading-normal">
+                      This item is currently sold out. Subscribe with your email below and we will notify you automatically the moment we restock it!
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSubscribeRestock} className="space-y-3">
+                  {subscribeStatus && (
+                    <div className={`p-3 text-xs rounded-lg font-medium leading-relaxed ${
+                      subscribeStatus.type === 'success' ? 'bg-emerald-50 border border-emerald-100 text-emerald-800' : 'bg-red-50 border border-red-100 text-red-800'
+                    }`}>
+                      {subscribeStatus.message}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Your Name"
+                      value={subscribeName}
+                      disabled={isSubscribing}
+                      onChange={(e) => setSubscribeName(e.target.value)}
+                      className="border border-[#e1d9cd] rounded px-3.5 py-2.5 text-xs focus:outline-none focus:border-[#c5a880] focus:ring-1 focus:ring-[#c5a880] bg-white text-gray-800 w-full"
+                    />
+                    <input
+                      type="email"
+                      required
+                      placeholder="Your Email Address"
+                      value={subscribeEmail}
+                      disabled={isSubscribing}
+                      onChange={(e) => setSubscribeEmail(e.target.value)}
+                      className="border border-[#e1d9cd] rounded px-3.5 py-2.5 text-xs focus:outline-none focus:border-[#c5a880] focus:ring-1 focus:ring-[#c5a880] bg-white text-gray-800 w-full"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubscribing}
+                    className="w-full py-3 bg-[#1e152a] hover:bg-[#c5a880] text-[#f1ebd9] hover:text-black font-extrabold uppercase text-xs tracking-widest transition-all rounded shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubscribing ? 'Subscribing...' : '🔔 Notify me on restock'}
+                  </button>
+                </form>
+              </div>
+            )}
 
             {/* Direct WhatsApp Product Inquiry CTA */}
             <button

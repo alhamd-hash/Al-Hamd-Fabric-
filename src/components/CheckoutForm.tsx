@@ -38,6 +38,13 @@ export default function CheckoutForm({
   const [orderIdCreated, setOrderIdCreated] = useState('');
   const [purchasedSnapshot, setPurchasedSnapshot] = useState<{ name: string; quantity: number; price: number }[]>([]);
 
+  // Snapshot states to preserve values once cart is cleared on checkout
+  const [snapshotSubtotal, setSnapshotSubtotal] = useState(0);
+  const [snapshotDeliveryCharges, setSnapshotDeliveryCharges] = useState(0);
+  const [snapshotGrandTotal, setSnapshotGrandTotal] = useState(0);
+  const [snapshotPaymentMethod, setSnapshotPaymentMethod] = useState<'cod' | 'advance'>('cod');
+  const [snapshotAdvanceProvider, setSnapshotAdvanceProvider] = useState<'jazzcash' | 'easypaisa'>('jazzcash');
+
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const deliveryCharges = calculateDeliveryCharges(subtotal);
   const advanceDiscount = paymentMethod === 'advance' ? 200 : 0;
@@ -130,6 +137,12 @@ export default function CheckoutForm({
         } : {})
       };
 
+      setSnapshotSubtotal(subtotal);
+      setSnapshotDeliveryCharges(deliveryCharges);
+      setSnapshotGrandTotal(grandTotal);
+      setSnapshotPaymentMethod(paymentMethod);
+      setSnapshotAdvanceProvider(advanceProvider);
+
       setPurchasedSnapshot(cart.map(item => ({
         name: item.product.name,
         quantity: item.quantity,
@@ -198,9 +211,9 @@ export default function CheckoutForm({
               <div className="flex justify-between">
                 <span className="text-[10px] uppercase font-bold text-gray-400">Payment Method:</span>
                 <strong className={`uppercase text-[9px] px-1.5 py-0.5 rounded border font-bold ${
-                  paymentMethod === 'advance' ? 'bg-indigo-50 text-indigo-700 border-indigo-150' : 'bg-amber-50 text-amber-800 border-amber-100'
+                  snapshotPaymentMethod === 'advance' ? 'bg-indigo-50 text-indigo-700 border-indigo-150' : 'bg-amber-50 text-amber-800 border-amber-100'
                 }`}>
-                  {paymentMethod === 'advance' ? `ADVANCE (${advanceProvider.toUpperCase()}) - PENDING` : 'C.O.D (AWAITING)'}
+                  {snapshotPaymentMethod === 'advance' ? `ADVANCE (${snapshotAdvanceProvider.toUpperCase()}) - PENDING` : 'C.O.D (AWAITING)'}
                 </strong>
               </div>
             </div>
@@ -210,10 +223,10 @@ export default function CheckoutForm({
               <span className="text-[9px] font-extrabold uppercase text-[#c5a880] tracking-widest block mb-2">Invoiced Fabric Suites:</span>
               <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1 no-scrollbar">
                 {purchasedSnapshot.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-[11px] text-gray-700 font-sans gap-2 leading-tight">
+                  <div key={idx} className="flex justify-between text-[11px] text-gray-750 font-sans gap-2 leading-tight">
                     <span className="truncate flex-1 font-medium text-gray-800">{item.name}</span>
                     <span className="text-gray-400 text-[10px] shrink-0">×{item.quantity}</span>
-                    <strong className="text-gray-800 font-mono text-[11px] shrink-0">{formatPKR(item.price * item.quantity)}</strong>
+                    <strong className="text-gray-850 font-mono text-[11px] shrink-0">{formatPKR(item.price * item.quantity)}</strong>
                   </div>
                 ))}
               </div>
@@ -223,22 +236,22 @@ export default function CheckoutForm({
             <div className="space-y-1 text-[11px] text-gray-650 pt-1">
               <div className="flex justify-between">
                 <span>Fabric Subtotal:</span>
-                <strong className="font-mono">{formatPKR(subtotal)}</strong>
+                <strong className="font-mono">{formatPKR(snapshotSubtotal)}</strong>
               </div>
               <div className="flex justify-between">
                 <span>Shipping Surcharge:</span>
-                <strong className="font-mono text-gray-750">{formatPKR(deliveryCharges)}</strong>
+                <strong className="font-mono text-gray-750">{formatPKR(snapshotDeliveryCharges)}</strong>
               </div>
               <div className="flex justify-between text-[#1e152a] font-extrabold text-xs pt-2.5 border-t border-[#e1d9cd]/60">
                 <span className="uppercase tracking-wider text-[10px] text-gray-900">Total Bill Due:</span>
-                <span className="text-sm font-black text-[#c5a880] font-sans">{formatPKR(grandTotal)}</span>
+                <span className="text-sm font-black text-[#c5a880] font-sans">{formatPKR(snapshotGrandTotal)}</span>
               </div>
             </div>
           </div>
         </div>
 
         <div className="pt-4 space-y-3.5 max-w-sm mx-auto font-sans">
-          {paymentMethod === 'advance' && (
+          {snapshotPaymentMethod === 'advance' && (
             <div className="p-3 bg-indigo-50 border border-indigo-150 rounded-xl text-center">
               <p className="text-[11px] text-indigo-700 font-bold leading-relaxed">
                 ⚖️ ADVANCE PAYMENT RECEIVED (PENDING VERIFICATION)

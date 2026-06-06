@@ -22,9 +22,11 @@ export default function ProductCard({
   onToggleWishlist
 }: ProductCardProps) {
   const currentImage = product.images[0] || 'https://picsum.photos/seed/fabric/300/400';
+  const isOutOfStock = product.inventory !== undefined && product.inventory <= 0;
 
   const handleAddToCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isOutOfStock) return;
     onAddToCart(product, 1, currentImage);
   };
 
@@ -52,22 +54,27 @@ export default function ProductCard({
           
           {/* Tag Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-            {product.isOnSale && (
+            {isOutOfStock && (
+              <span className="bg-red-700 text-white text-[9px] font-extrabold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs animate-pulse">
+                OUT OF STOCK
+              </span>
+            )}
+            {product.isOnSale && !isOutOfStock && (
               <span className="bg-red-600 text-white text-[9px] font-extrabold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs animate-pulse">
                 SALE
               </span>
             )}
-            {product.promoTag && (
+            {product.promoTag && !isOutOfStock && (
               <span className="bg-[#1e152a] text-[#c5a880] text-[9px] font-extrabold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs border border-[#c5a880]/30">
                 {product.promoTag}
               </span>
             )}
-            {product.isNewArrival && (
+            {product.isNewArrival && !isOutOfStock && (
               <span className="bg-[#1e152a] text-[#f1ebd9] text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md">
                 NEW
               </span>
             )}
-            {product.isHotSelling && (
+            {product.isHotSelling && !isOutOfStock && (
               <span className="bg-[#c5a880] text-black text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md">
                 HOT
               </span>
@@ -94,13 +101,19 @@ export default function ProductCard({
             >
               <Eye size={18} />
             </button>
-            <button
-              onClick={handleAddToCartClick}
-              className="p-3 bg-white text-[#100c18] rounded-full shadow-lg hover:bg-[#1e152a] hover:text-white transition-all transform hover:scale-105 cursor-pointer"
-              title="Add To Cart"
-            >
-              <ShoppingCart size={18} />
-            </button>
+            {!isOutOfStock ? (
+              <button
+                onClick={handleAddToCartClick}
+                className="p-3 bg-white text-[#100c18] rounded-full shadow-lg hover:bg-[#1e152a] hover:text-white transition-all transform hover:scale-105 cursor-pointer"
+                title="Add To Cart"
+              >
+                <ShoppingCart size={18} />
+              </button>
+            ) : (
+              <span className="px-3 py-2 bg-red-600 text-white font-bold text-[10px] rounded-full shadow-md select-none tracking-widest uppercase">
+                Sold Out
+              </span>
+            )}
           </div>
         </div>
 
@@ -172,22 +185,27 @@ export default function ProductCard({
 
         {/* Tag Badges */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10">
-          {product.isOnSale && (
+          {isOutOfStock && (
+            <span className="bg-red-700 text-white text-[8px] font-extrabold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs animate-pulse">
+              OUT OF STOCK
+            </span>
+          )}
+          {product.isOnSale && !isOutOfStock && (
             <span className="bg-red-600 text-white text-[8px] font-extrabold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs animate-pulse">
               SALE
             </span>
           )}
-          {product.promoTag && (
+          {product.promoTag && !isOutOfStock && (
             <span className="bg-[#1e152a] text-[#c5a880] text-[8px] font-extrabold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md shadow-xs border border-[#c5a880]/30">
               {product.promoTag}
             </span>
           )}
-          {product.isNewArrival && (
+          {product.isNewArrival && !isOutOfStock && (
             <span className="bg-[#1e152a] text-[#f1ebd9] text-[8px] font-bold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md">
               NEW
             </span>
           )}
-          {product.isHotSelling && (
+          {product.isHotSelling && !isOutOfStock && (
             <span className="bg-[#c5a880] text-black text-[8px] font-bold px-1.5 py-0.5 uppercase tracking-wider rounded-xs rounded-br-md">
               HOT
             </span>
@@ -214,13 +232,19 @@ export default function ProductCard({
             <Eye size={12} />
             Quick View
           </button>
-          <button
-            onClick={handleAddToCartClick}
-            className="px-2 py-1.5 bg-white text-black hover:bg-[#1e152a] hover:text-white rounded transition-colors shadow-md flex items-center justify-center cursor-pointer"
-            title="Add to Cart"
-          >
-            <ShoppingCart size={13} />
-          </button>
+          {!isOutOfStock ? (
+            <button
+              onClick={handleAddToCartClick}
+              className="px-2 py-1.5 bg-white text-black hover:bg-[#1e152a] hover:text-white rounded transition-colors shadow-md flex items-center justify-center cursor-pointer"
+              title="Add to Cart"
+            >
+              <ShoppingCart size={13} />
+            </button>
+          ) : (
+            <span className="px-2.5 py-1.5 bg-red-600 text-white font-bold text-[8px] rounded shadow-md select-none tracking-wider uppercase text-center flex items-center justify-center">
+              Sold Out
+            </span>
+          )}
         </div>
       </div>
 
@@ -239,8 +263,12 @@ export default function ProductCard({
             </span>
           )}
           {product.inventory !== undefined && (
-            <span className="inline-block text-[10px] text-emerald-805 font-bold border border-emerald-100 px-1.5 py-0.5 rounded-sm bg-emerald-50">
-              Stock: {product.inventory} Pcs
+            <span className={`inline-block text-[10px] font-bold border px-1.5 py-0.5 rounded-sm ${
+              isOutOfStock 
+                ? 'border-red-100 bg-red-50 text-red-600' 
+                : 'border-emerald-100 bg-emerald-50 text-emerald-800'
+            }`}>
+              {isOutOfStock ? 'Out of Stock' : `Stock: ${product.inventory} Pcs`}
             </span>
           )}
         </div>

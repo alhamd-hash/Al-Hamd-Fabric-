@@ -54,6 +54,15 @@ import {
   trackInitiateCheckout,
   trackPurchase
 } from './pixelService';
+import {
+  initGA,
+  trackGAPageView,
+  trackGAButtonClick,
+  trackGAViewContent,
+  trackGAAddToCart,
+  trackGABeginCheckout,
+  trackGAPurchase
+} from './gaService';
 import { INITIAL_COLLECTIONS, INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './data';
 
 // Core layout components
@@ -289,10 +298,30 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Trigger Meta PageView on navigation changes
+  // Initialize Google Analytics 4 hook on app startup
+  useEffect(() => {
+    initGA();
+  }, []);
+
+  // Trigger Meta PageView and GA4 PageView on navigation changes
   useEffect(() => {
     trackPageView();
-  }, [currentView, selectedProductId]);
+
+    // Dynamically calculate friendly GA page views for SPA
+    let customTitle = undefined;
+    if (currentView === 'product' && selectedProductId) {
+      const prod = products.find(p => p.id === selectedProductId);
+      if (prod) {
+        customTitle = `Al-Hamd Fabrics | ${prod.name} Luxury Suite Details`;
+      }
+    } else if (currentView === 'checkout') {
+      customTitle = 'Al-Hamd Fabrics | Secure Multi-item Checkout';
+    } else if (currentView === 'shop') {
+      customTitle = 'Al-Hamd Fabrics | Premium Lawn Collections & Gents Fabrics Store';
+    }
+    
+    trackGAPageView(currentView, customTitle);
+  }, [currentView, selectedProductId, products]);
 
   // --- Dynamic SEO Router & Sync Hooks ---
   // Helper to parse current browser URL pathname to state configuration
@@ -453,22 +482,36 @@ export default function App() {
     }
   }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections, seoSettings]);
 
-  // Trigger Meta ViewContent on focused product load/details view
+  // Trigger Meta ViewContent and GA4 view_item on focused product load/details view
   useEffect(() => {
     if (selectedProductId) {
       const prod = products.find(p => p.id === selectedProductId);
       if (prod) {
         trackViewContent(prod);
+        
+        // Google Analytics 4 tracking
+        try {
+          trackGAViewContent(prod);
+        } catch (e) {
+          console.error('[GA4] ViewContent tracking e:', e);
+        }
       }
     }
   }, [selectedProductId, products]);
 
-  // Trigger Meta InitiateCheckout on navigating to Checkout Form view
+  // Trigger Meta InitiateCheckout and GA4 begin_checkout on navigating to Checkout Form view
   useEffect(() => {
     if (currentView === 'checkout' && cart.length > 0) {
       const total = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
       const itemsList = cart.map(item => ({ product: item.product, quantity: item.quantity }));
       trackInitiateCheckout(itemsList, total);
+
+      // Google Analytics 4 tracking
+      try {
+        trackGABeginCheckout(itemsList, total);
+      } catch (e) {
+        console.error('[GA4] BeginCheckout tracking e:', e);
+      }
     }
   }, [currentView]);
 
@@ -498,6 +541,13 @@ export default function App() {
       trackAddToCart(product, quantity);
     } catch (e) {
       console.error('[Meta Pixel] AddToCart tracking error:', e);
+    }
+
+    // Track AddToCart GA4 Event
+    try {
+      trackGAAddToCart(product, quantity);
+    } catch (e) {
+      console.error('[GA4] AddToCart tracking error:', e);
     }
   };
 
@@ -616,6 +666,15 @@ export default function App() {
       trackPurchase(orderId, itemsList, total);
     } catch (e) {
       console.error('[Meta Pixel] Purchase tracking error:', e);
+    }
+
+    // Track Purchase GA4 Event
+    try {
+      const total = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+      const itemsList = cart.map(item => ({ product: item.product, quantity: item.quantity }));
+      trackGAPurchase(orderId, itemsList, total);
+    } catch (e) {
+      console.error('[GA4] Purchase tracking error:', e);
     }
 
     return orderId;

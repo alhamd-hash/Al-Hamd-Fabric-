@@ -138,14 +138,14 @@ Please let me know if you have this yardage available so I can proceed with the 
 
   const handleShareWhatsApp = () => {
     const slug = getProductSlug(product.name);
-    const productUrl = `${window.location.origin}/products/${slug}`;
+    const productUrl = `${window.location.origin}/#/products/${slug}`;
     const text = `Take a look at Alhamd Fabrics! 😍\n\n*Product:* ${product.name}\n*Price:* PKR ${formatPKR(product.price)}\n\nClick here to view details and place an order:\n${productUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleCopyLink = () => {
     const slug = getProductSlug(product.name);
-    const productUrl = `${window.location.origin}/products/${slug}`;
+    const productUrl = `${window.location.origin}/#/products/${slug}`;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(productUrl).then(() => {

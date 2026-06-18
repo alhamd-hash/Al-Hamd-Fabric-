@@ -579,9 +579,13 @@ export default function App() {
     updateMetaDescription(targetDesc);
     updateMetaKeywords(seoSettings?.keywords || 'Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore');
 
-    // Apply push/replace state using Clean Pathname URLs (backed up 100% by our Express catch-all middleware)
-    if (window.location.pathname !== targetPath) {
-      window.history.pushState(null, '', targetPath);
+    // Apply push/replace state using Hash Routing to avoid any 404 errors on browser refreshes or frame reloads
+    const targetHash = targetPath === '/' ? '' : '#' + targetPath;
+    if (window.location.pathname !== '/' && window.location.pathname !== '/index.html' && !window.location.pathname.startsWith('/api')) {
+      // Legacy or absolute pathname: gracefully convert to hash-based routing at the root
+      window.history.replaceState(null, '', `/${targetHash}`);
+    } else if (window.location.hash !== targetHash) {
+      window.history.pushState(null, '', `/${targetHash}`);
     }
   }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections, categories, seoSettings]);
 

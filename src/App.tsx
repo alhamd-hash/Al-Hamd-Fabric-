@@ -1208,6 +1208,21 @@ export default function App() {
     }
   };
 
+  const handleDeleteOrders = async (orderIds: string[]) => {
+    // Delete from Firestore
+    for (const orderId of orderIds) {
+      try {
+        await deleteOrderFromFirestore(orderId);
+      } catch (err) {
+        console.error(`Failed to delete order ${orderId} in Firestore:`, err);
+      }
+    }
+    // Update local state
+    const updated = orders.filter(o => !orderIds.includes(o.id));
+    setOrders(updated);
+    saveStoredOrders(updated);
+  };
+
   const handleApproveReview = async (reviewId: string) => {
     const updated = reviews.map(r => r.id === reviewId ? { ...r, approved: true } : r);
     setReviews(updated);
@@ -1475,6 +1490,7 @@ export default function App() {
                 coupons={coupons}
                 onAddCoupon={handleAddCoupon}
                 onDeleteCoupon={handleDeleteCoupon}
+                onDeleteOrders={handleDeleteOrders}
               />
             </Suspense>
           )

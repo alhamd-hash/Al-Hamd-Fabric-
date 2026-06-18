@@ -44,6 +44,7 @@ interface AdminPanelProps {
   coupons?: Coupon[];
   onAddCoupon?: (coupon: Coupon) => void;
   onDeleteCoupon?: (id: string) => void;
+  onDeleteOrders?: (orderIds: string[]) => void;
 }
 
 export default function AdminPanel({
@@ -81,7 +82,8 @@ export default function AdminPanel({
   onSaveSeoSettings,
   coupons = [],
   onAddCoupon,
-  onDeleteCoupon
+  onDeleteCoupon,
+  onDeleteOrders
 }: AdminPanelProps) {
   // Authentication State
   const [password, setPassword] = useState('');
@@ -250,6 +252,15 @@ export default function AdminPanel({
   const [deleteWizardType, setDeleteWizardType] = useState<'gents-col' | 'gents-cat' | 'ladies-col' | 'ladies-cat' | null>(null);
   const [deleteWizardSelectedId, setDeleteWizardSelectedId] = useState<string>('');
 
+  // --- Order Deletion Feature States ---
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkDeleteStatus, setBulkDeleteStatus] = useState<'Pending' | 'Confirmed' | 'Delivered' | 'Cancelled' | 'all'>('all');
+  const [bulkDeleteTimeframe, setBulkDeleteTimeframe] = useState<'24h' | '7d' | 'all'>('all');
+  const [showBulkDeletePanel, setShowBulkDeletePanel] = useState(false);
+  const [bulkDeleteConfirmationText, setBulkDeleteConfirmationText] = useState('');
+  const [isDeletingOrders, setIsDeletingOrders] = useState(false);
+  const [singleOrderIdToDelete, setSingleOrderIdToDelete] = useState<string | null>(null);
+
   // --- Meta Pixel Dynamics ---
   React.useEffect(() => {
     let active = true;
@@ -416,6 +427,120 @@ export default function AdminPanel({
   };
 
   const filteredOrders = filterOrdersByDateAndStatus(orders);
+
+  // --- Order deletion action handlers ---
+  const [bulkConfirmStage, setBulkConfirmStage] = useState<'idle' | 'confirming'>('idle');
+  const [selectedConfirmStage, setSelectedConfirmStage] = useState<'idle' | 'confirming'>('idle');
+  const [bulkDeleteMessage, setBulkDeleteMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const getMatchingBulkOrderCount = () => {
+    let matches = [...orders];
+    // Filter by Status
+    if (bulkDeleteStatus !== 'all') {
+      matches = matches.filter(o => o.status === bulkDeleteStatus);
+    }
+    // Filter by Timeframe
+    const now = new Date();
+    if (bulkDeleteTimeframe === '24h') {
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      matches = matches.filter(o => new Date(o.createdAt) >= oneDayAgo);
+    } else if (bulkDeleteTimeframe === '7d') {
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      matches = matches.filter(o => new Date(o.createdAt) >= sevenDaysAgo);
+    }
+    return matches.length;
+  };
+
+  const handleBulkDeleteOrdersSubmit = async () => {
+    if (!onDeleteOrders) return;
+    setIsDeletingOrders(true);
+    setBulkDeleteMessage(null);
+    try {
+      let matches = [...orders];
+
+      // Filter by Status
+      if (bulkDeleteStatus !== 'all') {
+        matches = matches.filter(o => o.status === bulkDeleteStatus);
+      }
+
+      // Filter by Timeframe
+      const now = new Date();
+      if (bulkDeleteTimeframe === '24h') {
+        const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        matches = matches.filter(o => new Date(o.createdAt) >= oneDayAgo);
+      } else if (bulkDeleteTimeframe === '7d') {
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        matches = matches.filter(o => new Date(o.createdAt) >= sevenDaysAgo);
+      }
+
+      const matchIds = matches.map(o => o.id);
+      if (matchIds.length === 0) {
+        setBulkDeleteMessage({ text: "No matching orders found inside the chosen timeline and status filters.", type: 'info' });
+        setBulkConfirmStage('idle');
+        return;
+      }
+
+      await onDeleteOrders(matchIds);
+      
+      // Clear selection states
+      setSelectedOrderIds(prev => prev.filter(id => !matchIds.includes(id)));
+      setBulkDeleteMessage({ text: `Successfully deleted ${matchIds.length} orders permanently from live database.`, type: 'success' });
+      setBulkConfirmStage('idle');
+      // Reset after a short delay
+      setTimeout(() => {
+        setShowBulkDeletePanel(false);
+        setBulkDeleteMessage(null);
+      }, 3000);
+    } catch (e) {
+      console.error("Bulk delete error: ", e);
+      setBulkDeleteMessage({ text: "An error occurred while bulk deleting orders from database.", type: 'error' });
+    } finally {
+      setIsDeletingOrders(false);
+    }
+  };
+
+  // Delete selected targeted orders
+  const handleDeleteSelectedOrdersSubmit = async () => {
+    if (!onDeleteOrders || selectedOrderIds.length === 0) return;
+    setIsDeletingOrders(true);
+    try {
+      await onDeleteOrders(selectedOrderIds);
+      setSelectedOrderIds([]);
+      setSelectedConfirmStage('idle');
+    } catch (e) {
+      console.error("Selected delete error: ", e);
+    } finally {
+      setIsDeletingOrders(false);
+    }
+  };
+
+  // Toggle order in selection list
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds(prev => {
+      if (prev.includes(orderId)) {
+        return prev.filter(id => id !== orderId);
+      } else {
+        return [...prev, orderId];
+      }
+    });
+  };
+
+  // Toggle all filtered orders on current page
+  const toggleAllFilteredOrders = () => {
+    const allFilteredIds = filteredOrders.map(o => o.id);
+    const areAllSelected = allFilteredIds.every(id => selectedOrderIds.includes(id));
+
+    if (areAllSelected) {
+      // Deselect all filtered
+      setSelectedOrderIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+    } else {
+      // Select all filtered (add non-duplicates)
+      setSelectedOrderIds(prev => {
+        const additions = allFilteredIds.filter(id => !prev.includes(id));
+        return [...prev, ...additions];
+      });
+    }
+  };
 
   // Stats Counters
   const pendingReviewsCount = reviews.filter(r => !r.approved).length;
@@ -1202,15 +1327,213 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              {/* --- Order Deletion Command Center --- */}
+              <div className="bg-rose-50/40 rounded-xl border border-rose-100 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div className="space-y-0.5">
+                    <h4 className="font-semibold text-xs text-rose-900 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Trash2 size={13} className="text-rose-600 stroke-[2.5]" />
+                      Database Maintenance & Order Purging
+                    </h4>
+                    <p className="text-[10px] text-rose-700/80">
+                      Permanently erase order invoice records from live database files and release related metrics.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 self-stretch sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkDeletePanel(!showBulkDeletePanel)}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-extrabold tracking-wide uppercase transition-all flex items-center gap-1 cursor-pointer ${
+                        showBulkDeletePanel 
+                          ? 'bg-rose-700 text-white shadow-xs' 
+                          : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-50'
+                      }`}
+                    >
+                      <Filter size={11} />
+                      Bulk Deletion Tool
+                    </button>
+
+                    {selectedOrderIds.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {selectedConfirmStage === 'idle' ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedConfirmStage('confirming')}
+                            className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-md text-[10px] font-extrabold tracking-wide uppercase flex items-center gap-1.5 animate-pulse cursor-pointer"
+                          >
+                            <Trash2 size={11} />
+                            Purge {selectedOrderIds.length} Selected/All
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-1 animate-fade-in">
+                            <span className="text-[10px] font-bold text-rose-800 mr-1 animate-pulse">Confirm?</span>
+                            <button
+                              type="button"
+                              onClick={handleDeleteSelectedOrdersSubmit}
+                              disabled={isDeletingOrders}
+                              className="bg-emerald-600 text-white px-2.5 py-1.5 rounded-md text-[10px] font-extrabold uppercase hover:bg-emerald-700 shadow-xs cursor-pointer"
+                            >
+                              Yes, Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedConfirmStage('idle')}
+                              className="bg-gray-200 text-gray-700 px-2 py-1.5 rounded-md text-[10px] font-extrabold uppercase hover:bg-gray-300 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bulk delete setup control panel */}
+                {showBulkDeletePanel && (
+                  <div className="bg-white border border-rose-200 p-4 rounded-lg space-y-4 animate-fade-in text-left">
+                    <div className="text-xs font-bold text-rose-900 border-b border-rose-100 pb-1.5 flex justify-between items-center">
+                      <span>1. CONFIGURE BULK PURGE FILTER CRITERIA</span>
+                      <span className="bg-rose-100 text-rose-800 font-mono text-[10px] px-2 py-0.5 rounded-full">
+                        Matches: {getMatchingBulkOrderCount()} records
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* From dynamic category status */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1">
+                          Delete From Order Status
+                        </label>
+                        <select
+                          value={bulkDeleteStatus}
+                          onChange={(e) => {
+                            setBulkDeleteStatus(e.target.value as any);
+                            setBulkConfirmStage('idle');
+                          }}
+                          className="w-full bg-[#faf9f6]/40 border border-gray-200 text-xs px-2.5 py-1.5 rounded focus:outline-none focus:border-rose-500 font-medium"
+                        >
+                          <option value="all">ALL System Orders (Confirmed & Pending & Cancelled etc.)</option>
+                          <option value="Pending">Only Pending Orders</option>
+                          <option value="Confirmed">Only Confirmed Orders</option>
+                          <option value="Delivered">Only Delivered Orders</option>
+                          <option value="Cancelled">Only Cancelled Orders</option>
+                        </select>
+                      </div>
+
+                      {/* Timeline filter */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1">
+                          Delete Registered Within Timeline
+                        </label>
+                        <select
+                          value={bulkDeleteTimeframe}
+                          onChange={(e) => {
+                            setBulkDeleteTimeframe(e.target.value as any);
+                            setBulkConfirmStage('idle');
+                          }}
+                          className="w-full bg-[#faf9f6]/40 border border-gray-200 text-xs px-2.5 py-1.5 rounded focus:outline-none focus:border-rose-500 font-medium"
+                        >
+                          <option value="all">All Timelines (Historical/Infinite)</option>
+                          <option value="24h">Created Last 24 Hours Only</option>
+                          <option value="7d">Created Last 7 Days Only</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Safeguard checks */}
+                    {getMatchingBulkOrderCount() > 0 ? (
+                      <div className="bg-rose-50 rounded p-3 border border-dashed border-rose-200 space-y-3">
+                        <div className="text-[11px] text-rose-800 leading-relaxed font-semibold">
+                          ⚠️ Security Checkpoint: To safely proceed with purging <strong>{getMatchingBulkOrderCount()}</strong> orders matching status {bulkDeleteStatus === 'all' ? 'All' : bulkDeleteStatus} and timeline {bulkDeleteTimeframe === 'all' ? 'All' : bulkDeleteTimeframe === '24h' ? '24 Hours' : '7 Days'}, you must type <span className="underline font-bold text-rose-900 font-mono">DELETE</span> below to confirm.
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="Type 'DELETE' here..."
+                            value={bulkDeleteConfirmationText}
+                            onChange={(e) => setBulkDeleteConfirmationText(e.target.value)}
+                            className="bg-white border border-gray-300 rounded text-xs px-3 py-1.5 focus:outline-none focus:border-rose-600 sm:w-48 font-mono"
+                          />
+
+                          {bulkConfirmStage === 'idle' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (bulkDeleteConfirmationText === 'DELETE') {
+                                  setBulkConfirmStage('confirming');
+                                }
+                              }}
+                              disabled={bulkDeleteConfirmationText !== 'DELETE' || isDeletingOrders}
+                              className={`px-4 py-1.5 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-1 ${
+                                bulkDeleteConfirmationText === 'DELETE'
+                                  ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs'
+                                  : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                              }`}
+                            >
+                              <Trash2 size={13} />
+                              Review Purge Action
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-red-700 font-bold animate-pulse mr-2">Irreversible! Confirm?</span>
+                              <button
+                                type="button"
+                                onClick={handleBulkDeleteOrdersSubmit}
+                                disabled={isDeletingOrders}
+                                className="bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded text-[10px] font-extrabold uppercase shadow cursor-pointer"
+                              >
+                                {isDeletingOrders ? "Processing..." : "Purge Now"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBulkConfirmStage('idle')}
+                                className="bg-gray-100 text-gray-600 hover:bg-gray-200 px-2 py-1.5 rounded text-[10px] font-extrabold uppercase cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-2 text-xs text-gray-400 font-medium">
+                        (Zero actual orders match status '{bulkDeleteStatus}' & timeline '{bulkDeleteTimeframe === 'all' ? 'All' : bulkDeleteTimeframe}')
+                      </div>
+                    )}
+
+                    {bulkDeleteMessage && (
+                      <div className={`p-2 rounded text-[11px] font-bold ${
+                        bulkDeleteMessage.type === 'success' ? 'bg-emerald-50 text-emerald-800' :
+                        bulkDeleteMessage.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'
+                      }`}>
+                        {bulkDeleteMessage.text}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Orders count layout summary */}
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-500">
-                  Showing <strong>{filteredOrders.length}</strong> order invoice records matching filters
-                </span>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs border-b border-gray-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleAllFilteredOrders}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded text-[10px] uppercase transition-all cursor-pointer"
+                  >
+                    <CheckCircle size={12} className={filteredOrders.length > 0 && filteredOrders.every(o => selectedOrderIds.includes(o.id)) ? "text-emerald-600" : "text-stone-400"} />
+                    {filteredOrders.length > 0 && filteredOrders.every(o => selectedOrderIds.includes(o.id)) ? "Deselect All Filtered" : "Select All Filtered"}
+                  </button>
+                  <span className="text-gray-500">
+                    Showing <strong>{filteredOrders.length}</strong> matching records (<strong>{selectedOrderIds.length}</strong> selected for purge)
+                  </span>
+                </div>
                 {(statusFilter !== 'all' || datePeriod !== 'all') && (
                   <button
                     onClick={() => { setStatusFilter('all'); setDatePeriod('all'); }}
-                    className="text-[#c5a880] font-bold hover:underline"
+                    className="text-[#c5a880] font-bold hover:underline cursor-pointer"
                   >
                     Reset Filter Queries
                   </button>
@@ -1232,11 +1555,19 @@ export default function AdminPanel({
                     <div key={order.id} className="border border-gray-100 rounded-xl bg-[#faf9f6]/30 overflow-hidden shadow-2xs">
                       {/* Top ribbon header */}
                       <div className="p-4 bg-stone-50 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
-                        <div>
-                          <strong className="text-[#1e152a] font-mono text-[13px]">{order.id}</strong>
-                          <span className="text-gray-400 block sm:inline sm:ml-2">
-                            Placing: {new Date(order.createdAt).toLocaleString('en-PK')}
-                          </span>
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrderIds.includes(order.id)}
+                            onChange={() => toggleOrderSelection(order.id)}
+                            className="w-4 h-4 rounded text-[#c5a880] focus:ring-[#c5a880]/30 border-gray-300 accent-[#c5a880] cursor-pointer"
+                          />
+                          <div>
+                            <strong className="text-[#1e152a] font-mono text-[13px]">{order.id}</strong>
+                            <span className="text-gray-400 block sm:inline sm:ml-2">
+                              Placing: {new Date(order.createdAt).toLocaleString('en-PK')}
+                            </span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {order.status === 'Delivered' && !order.isReceived && (

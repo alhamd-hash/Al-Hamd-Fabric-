@@ -113,6 +113,8 @@ export default function App() {
   const [collectionCategoryFilter, setCollectionCategoryFilter] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [pendingProductSlug, setPendingProductSlug] = useState<string | null>(null);
+  const [pendingCollectionInfo, setPendingCollectionInfo] = useState<{ slug: string; gender?: 'gents' | 'ladies' | null } | null>(null);
+  const [pendingCategoryInfo, setPendingCategoryInfo] = useState<{ slug: string; gender?: 'gents' | 'ladies' | null } | null>(null);
 
   // Search input state
   const [searchQuery, setSearchQuery] = useState('');
@@ -346,11 +348,31 @@ export default function App() {
       const slug = path.substring('/products/'.length);
       return { type: 'product', payload: slug };
     } else if (path.startsWith('/collections/')) {
-      const colId = path.substring('/collections/'.length);
-      return { type: 'collection', payload: colId };
+      const remainder = path.substring('/collections/'.length);
+      const parts = remainder.split('/');
+      let gender: 'gents' | 'ladies' | null = null;
+      let slug = '';
+      if (parts.length >= 2) {
+        const g = parts[0].toLowerCase();
+        gender = (g === 'gents' || g === 'men') ? 'gents' : 'ladies';
+        slug = parts[1];
+      } else if (parts.length === 1) {
+        slug = parts[0];
+      }
+      return { type: 'collection', payload: { slug, gender } };
     } else if (path.startsWith('/categories/')) {
-      const catName = decodeURIComponent(path.substring('/categories/'.length));
-      return { type: 'category', payload: catName };
+      const remainder = path.substring('/categories/'.length);
+      const parts = remainder.split('/');
+      let gender: 'gents' | 'ladies' | null = null;
+      let slug = '';
+      if (parts.length >= 2) {
+        const g = parts[0].toLowerCase();
+        gender = (g === 'gents' || g === 'men') ? 'gents' : 'ladies';
+        slug = parts[1];
+      } else if (parts.length === 1) {
+        slug = parts[0];
+      }
+      return { type: 'category', payload: { slug, gender } };
     } else if (path === '/about') {
       return { type: 'about' };
     } else if (path === '/contact') {
@@ -363,7 +385,7 @@ export default function App() {
     return { type: 'home' };
   };
 
-  const applyParsedState = (parsed: { type: string; payload?: string }) => {
+  const applyParsedState = (parsed: { type: string; payload?: any }) => {
     if (parsed.type === 'product') {
       // Defer-lookup since products load asynchronously from Firestore
       setPendingProductSlug(parsed.payload || null);
@@ -372,11 +394,10 @@ export default function App() {
       setPendingProductSlug(null);
       if (parsed.type === 'collection') {
         setCurrentView('collection');
-        setSelectedCollectionId(parsed.payload || null);
-        setCollectionCategoryFilter(null);
+        setPendingCollectionInfo(parsed.payload || null);
       } else if (parsed.type === 'category') {
         setCurrentView('category');
-        setSelectedCategoryName(parsed.payload || null);
+        setPendingCategoryInfo(parsed.payload || null);
       } else if (parsed.type === 'about') {
         setCurrentView('about');
       } else if (parsed.type === 'contact') {
@@ -390,6 +411,8 @@ export default function App() {
         setSelectedCollectionId(null);
         setSelectedCategoryName(null);
         setCollectionCategoryFilter(null);
+        setPendingCollectionInfo(null);
+        setPendingCategoryInfo(null);
       }
     }
   };
@@ -451,6 +474,44 @@ export default function App() {
     }
   }, [products, pendingProductSlug]);
 
+  // 2b. Reactively resolve pending collection once Firestore fetches all entries
+  useEffect(() => {
+    if (pendingCollectionInfo && collections.length > 0) {
+      const matched = collections.find(c => {
+        const slugMatch = getProductSlug(c.name) === pendingCollectionInfo.slug || c.id === pendingCollectionInfo.slug;
+        if (pendingCollectionInfo.gender) {
+          const isGentsVal = pendingCollectionInfo.gender === 'gents';
+          return slugMatch && (c.isGents === isGentsVal || c.isGents === undefined);
+        }
+        return slugMatch;
+      });
+      if (matched) {
+        setSelectedCollectionId(matched.id);
+        setCollectionCategoryFilter(null);
+        setPendingCollectionInfo(null);
+      }
+    }
+  }, [collections, pendingCollectionInfo]);
+
+  // 2c. Reactively resolve pending category once Firestore fetches all entries
+  useEffect(() => {
+    if (pendingCategoryInfo && categories.length > 0) {
+      const decodedSearch = decodeURIComponent(pendingCategoryInfo.slug);
+      const matched = categories.find(c => {
+        const slugMatch = getProductSlug(c.name) === pendingCategoryInfo.slug || c.name.toLowerCase() === decodedSearch.toLowerCase();
+        if (pendingCategoryInfo.gender) {
+          const isGentsVal = pendingCategoryInfo.gender === 'gents';
+          return slugMatch && (c.isGents === isGentsVal);
+        }
+        return slugMatch;
+      });
+      if (matched) {
+        setSelectedCategoryName(matched.name);
+        setPendingCategoryInfo(null);
+      }
+    }
+  }, [categories, pendingCategoryInfo]);
+
   // 3. State -> URL & SEO metadata Tags Synchronizer
   useEffect(() => {
     let targetPath = '/';
@@ -468,12 +529,17 @@ export default function App() {
     } else if (currentView === 'collection' && selectedCollectionId) {
       const col = collections.find(c => c.id === selectedCollectionId);
       if (col) {
-        targetPath = `/collections/${selectedCollectionId}`;
+        const genderSegment = col.isGents !== false ? 'gents' : 'ladies';
+        const slug = getProductSlug(col.name);
+        targetPath = `/collections/${genderSegment}/${slug}`;
         targetTitle = `${col.name} Collection | Al-Hamd Fabrics Lahore`;
         targetDesc = col.description || `Shop the exclusive ${col.name} collection at Al-Hamd Fabrics Lahore. Dynamic online checkout and premium materials.`;
       }
     } else if (currentView === 'category' && selectedCategoryName) {
-      targetPath = `/categories/${encodeURIComponent(selectedCategoryName)}`;
+      const cat = categories.find(c => c.name === selectedCategoryName);
+      const genderSegment = cat ? (cat.isGents !== false ? 'gents' : 'ladies') : 'gents';
+      const slug = getProductSlug(selectedCategoryName);
+      targetPath = `/categories/${genderSegment}/${slug}`;
       targetTitle = `${selectedCategoryName} | Al-Hamd Fabrics Lahore`;
       targetDesc = `Discover premium fabrics, lawn suits, gents cotton suits, and unstitched suits in our ${selectedCategoryName} category. Fast nationwide delivery.`;
     } else if (currentView === 'about') {
@@ -503,7 +569,7 @@ export default function App() {
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, '', targetPath);
     }
-  }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections, seoSettings]);
+  }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections, categories, seoSettings]);
 
   // Trigger Meta ViewContent and GA4 view_item on focused product load/details view
   useEffect(() => {

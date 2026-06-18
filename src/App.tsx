@@ -415,14 +415,8 @@ export default function App() {
     meta.setAttribute('content', content);
   };
 
-  // 1. Bidirectional URL -> State Synchronizer with Hash change handler support
+  // 1. Bidirectional URL -> State Synchronizer with popstate & hash support
   useEffect(() => {
-    // If user loaded with a direct path, e.g. /products/slug, redirect to hash equivalents for 100% resilient refreshing
-    if (window.location.pathname !== '/' && window.location.pathname !== '/index.html' && !window.location.pathname.includes('.')) {
-      const originalPath = window.location.pathname;
-      window.history.replaceState(null, '', `/#${originalPath}${window.location.search}`);
-    }
-
     const handlePopState = () => {
       const parsed = parseUrlToState();
       applyParsedState(parsed);
@@ -505,10 +499,9 @@ export default function App() {
     updateMetaDescription(targetDesc);
     updateMetaKeywords(seoSettings?.keywords || 'Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore');
 
-    // Apply push/replace state using Hash routing to guarantee 100% successful page refreshes without 404 errors
-    const targetHash = `#${targetPath}`;
-    if (window.location.hash !== targetHash) {
-      window.history.pushState(null, '', `/${targetHash}`);
+    // Apply push/replace state using Clean Pathname URLs (backed up 100% by our Express catch-all middleware)
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
     }
   }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections, seoSettings]);
 

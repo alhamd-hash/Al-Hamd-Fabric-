@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Star, Shield, RefreshCw, ChevronLeft, Calendar, User, MessageSquare, Plus, ShoppingCart, Send, Truck, Calculator } from 'lucide-react';
 import { Product, Review } from '../types';
-import { formatPKR } from '../utils';
+import { formatPKR, getProductSlug } from '../utils';
 
 interface ProductDetailsProps {
   product: Product;
@@ -49,6 +49,7 @@ export default function ProductDetails({
   const [calcSuitType, setCalcSuitType] = useState<'3pc' | '2pc' | 'shirt' | 'custom'>(product.isLadiesSuit ? '3pc' : '2pc');
   const [calcSuitsQty, setCalcSuitsQty] = useState(1);
   const [customMeters, setCustomMeters] = useState(8.0);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Calculated values based on type
   const getRequiredMetersPerSuit = () => {
@@ -133,6 +134,37 @@ Total Calculated Cost: ${formatPKR(totalCalculatedCost)}
 
 Please let me know if you have this yardage available so I can proceed with the purchase. Thank you!`;
     handleWhatsAppInquiry(msg);
+  };
+
+  const handleShareWhatsApp = () => {
+    const slug = getProductSlug(product.name);
+    const productUrl = `${window.location.origin}/products/${slug}`;
+    const text = `Take a look at Alhamd Fabrics! 😍\n\n*Product:* ${product.name}\n*Price:* PKR ${formatPKR(product.price)}\n\nClick here to view details and place an order:\n${productUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleCopyLink = () => {
+    const slug = getProductSlug(product.name);
+    const productUrl = `${window.location.origin}/products/${slug}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(productUrl).then(() => {
+          setCopiedLink(true);
+          setTimeout(() => setCopiedLink(false), 2000);
+        });
+      } else {
+        const tempInput = document.createElement('input');
+        tempInput.value = productUrl;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
   };
 
   // Get only approved reviews for this product
@@ -507,6 +539,40 @@ Please let me know if you have this yardage available so I can proceed with the 
               <span className="text-base">💬</span>
               WhatsApp par Product Inquiry kryn (Code: {product.code || 'ALH-N/A'})
             </button>
+
+            {/* Share Product Options Widget */}
+            <div className="p-4 bg-stone-50 border border-stone-150 rounded-xl space-y-3 text-left">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                    🔗 Share This Suit
+                  </span>
+                  <span className="block text-[9px] text-gray-400 font-normal mt-0.5">
+                    Share this premium unstitched suit with your friends or family members on WhatsApp.
+                  </span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 rounded-lg border border-stone-200 overflow-hidden bg-white text-xs divide-x divide-stone-200 shadow-sm">
+                <button
+                  type="button"
+                  onClick={handleShareWhatsApp}
+                  className="py-2.5 px-3 hover:bg-emerald-50 text-emerald-700 font-bold transition-all flex items-center justify-center gap-2 cursor-pointer outline-none"
+                >
+                  <span className="text-sm">💬</span>
+                  Share WhatsApp
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="py-2.5 px-3 hover:bg-stone-50 text-[#1e152a] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer outline-none"
+                >
+                  <span className="text-sm">{copiedLink ? '✅' : '🔗'}</span>
+                  {copiedLink ? 'Copied Link!' : 'Copy Page Link'}
+                </button>
+              </div>
+            </div>
 
             {/* Guaranteed Trust badge icons */}
             <div className="grid grid-cols-3 gap-3 pt-4 text-center">

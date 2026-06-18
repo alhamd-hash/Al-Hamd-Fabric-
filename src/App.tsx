@@ -324,9 +324,24 @@ export default function App() {
   }, [currentView, selectedProductId, products]);
 
   // --- Dynamic SEO Router & Sync Hooks ---
-  // Helper to parse current browser URL pathname to state configuration
+  // Helper to parse current browser URL hash or pathname to state configuration
   const parseUrlToState = () => {
-    const path = window.location.pathname;
+    let path = window.location.pathname;
+    
+    // Check if there is a hash route
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#')) {
+      path = hash.substring(1);
+    }
+
+    // Clean up potential duplicate hashes or slash issues
+    if (path.startsWith('/#')) {
+      path = path.substring(2);
+    }
+    if (!path.startsWith('/')) {
+      path = '/' + path;
+    }
+
     if (path.startsWith('/products/')) {
       const slug = path.substring('/products/'.length);
       return { type: 'product', payload: slug };
@@ -400,13 +415,26 @@ export default function App() {
     meta.setAttribute('content', content);
   };
 
-  // 1. Bidirectional URL -> State Synchronizer
+  // 1. Bidirectional URL -> State Synchronizer with Hash change handler support
   useEffect(() => {
+    // If user loaded with a direct path, e.g. /products/slug, redirect to hash equivalents for 100% resilient refreshing
+    if (window.location.pathname !== '/' && window.location.pathname !== '/index.html' && !window.location.pathname.includes('.')) {
+      const originalPath = window.location.pathname;
+      window.history.replaceState(null, '', `/#${originalPath}${window.location.search}`);
+    }
+
     const handlePopState = () => {
       const parsed = parseUrlToState();
       applyParsedState(parsed);
     };
+
+    const handleHashChange = () => {
+      const parsed = parseUrlToState();
+      applyParsedState(parsed);
+    };
+
     window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handleHashChange);
     
     // Initial sync
     const parsed = parseUrlToState();
@@ -414,6 +442,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
 
@@ -476,9 +505,10 @@ export default function App() {
     updateMetaDescription(targetDesc);
     updateMetaKeywords(seoSettings?.keywords || 'Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore');
 
-    // Apply push/replace state to keep route synced cleanly without disturbing user focus
-    if (window.location.pathname !== targetPath) {
-      window.history.pushState(null, '', targetPath);
+    // Apply push/replace state using Hash routing to guarantee 100% successful page refreshes without 404 errors
+    const targetHash = `#${targetPath}`;
+    if (window.location.hash !== targetHash) {
+      window.history.pushState(null, '', `/${targetHash}`);
     }
   }, [selectedProductId, currentView, selectedCollectionId, selectedCategoryName, products, collections, seoSettings]);
 

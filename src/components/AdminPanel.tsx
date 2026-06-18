@@ -194,6 +194,9 @@ export default function AdminPanel({
 
   const [isNewArrival, setIsNewArrival] = useState(true);
   const [isHotSelling, setIsHotSelling] = useState(false);
+  const [prodRelatedType, setProdRelatedType] = useState<'auto' | 'custom'>('auto');
+  const [prodCustomRelatedIds, setProdCustomRelatedIds] = useState<string[]>([]);
+  const [relatedSearch, setRelatedSearch] = useState('');
 
   // Admin Catalog Search & Row Flags Filter
   const [adminProductSearch, setAdminProductSearch] = useState('');
@@ -553,7 +556,9 @@ export default function AdminPanel({
       rating: 4.8,
       isOnSale,
       originalPrice: isOnSale ? prodOriginalPrice : undefined,
-      promoTag: promoTag.trim() || undefined
+      promoTag: promoTag.trim() || undefined,
+      relatedType: prodRelatedType,
+      customRelatedIds: prodRelatedType === 'custom' ? prodCustomRelatedIds : []
     };
 
     if (editingProdId) {
@@ -601,6 +606,9 @@ export default function AdminPanel({
 
     setIsNewArrival(true);
     setIsHotSelling(false);
+    setProdRelatedType('auto');
+    setProdCustomRelatedIds([]);
+    setRelatedSearch('');
     
     setShowProdForm(false);
   };
@@ -638,6 +646,8 @@ export default function AdminPanel({
     setIsLadiesSuit(prod.isLadiesSuit !== false);
     setIsNewArrival(!!prod.isNewArrival);
     setIsHotSelling(!!prod.isHotSelling);
+    setProdRelatedType(prod.relatedType || 'auto');
+    setProdCustomRelatedIds(prod.customRelatedIds || []);
 
     setShowProdForm(true);
   };
@@ -2549,6 +2559,123 @@ export default function AdminPanel({
                         <span className="block text-[9px] text-gray-400 font-normal">Adds a Hot Tag overlay badge on grids.</span>
                       </div>
                     </label>
+                  </div>
+
+                  {/* Related Products Section */}
+                  <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg space-y-3 text-left">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                          Related Products Configuration
+                        </span>
+                        <span className="block text-[9px] text-gray-400 font-normal">
+                          Choose how related/recommended items are displayed at the bottom of this product's page.
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-6 py-1">
+                      <label className="flex items-center gap-2 cursor-pointer font-bold text-xs select-none">
+                        <input
+                          type="radio"
+                          name="relatedType"
+                          value="auto"
+                          checked={prodRelatedType === 'auto'}
+                          onChange={() => setProdRelatedType('auto')}
+                          className="w-4 h-4 text-[#c5a880] focus:ring-[#c5a880] cursor-pointer"
+                        />
+                        <span className="text-gray-700">🔄 Auto Related Products</span>
+                      </label>
+                      
+                      <label className="flex items-center gap-2 cursor-pointer font-bold text-xs select-none">
+                        <input
+                          type="radio"
+                          name="relatedType"
+                          value="custom"
+                          checked={prodRelatedType === 'custom'}
+                          onChange={() => setProdRelatedType('custom')}
+                          className="w-4 h-4 text-[#c5a880] focus:ring-[#c5a880] cursor-pointer"
+                        />
+                        <span className="text-gray-700">🛠️ Custom Related Products</span>
+                      </label>
+                    </div>
+
+                    {prodRelatedType === 'auto' ? (
+                      <p className="text-[10px] text-gray-500 bg-white p-3 border border-gray-150 rounded leading-relaxed">
+                        💡 <strong>Auto Mode Active:</strong> Recommendations will automatically show items from the same collection(s) or category of this product. Fits dynamically side-by-side with inventory.
+                      </p>
+                    ) : (
+                      <div className="space-y-3 bg-white p-3 border border-gray-150 rounded">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                            Select Custom Products ({prodCustomRelatedIds.length} selected)
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="Type to search products..."
+                            value={relatedSearch}
+                            onChange={(e) => setRelatedSearch(e.target.value)}
+                            className="bg-stone-50 border border-gray-205 px-2.5 py-1 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-[#c5a880] w-full sm:w-48 placeholder:text-gray-400"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-stone-100 p-2 rounded bg-stone-50/50">
+                          {products
+                            .filter(p => {
+                              // Don't recommend itself
+                              if (editingProdId && p.id === editingProdId) return false;
+                              
+                              if (!relatedSearch.trim()) return true;
+                              const searchLower = relatedSearch.toLowerCase();
+                              return (
+                                p.name.toLowerCase().includes(searchLower) ||
+                                (p.code && p.code.toLowerCase().includes(searchLower))
+                              );
+                            })
+                            .map(p => {
+                              const isChecked = prodCustomRelatedIds.includes(p.id);
+                              return (
+                                <button
+                                  type="button"
+                                  key={p.id}
+                                  onClick={() => {
+                                    if (isChecked) {
+                                      setProdCustomRelatedIds(prodCustomRelatedIds.filter(id => id !== p.id));
+                                    } else {
+                                      setProdCustomRelatedIds([...prodCustomRelatedIds, p.id]);
+                                    }
+                                  }}
+                                  className={`flex items-center gap-2 cursor-pointer p-1.5 hover:bg-stone-100 rounded text-left transition-all border ${
+                                    isChecked ? 'border-amber-300 bg-amber-50/20' : 'border-transparent'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    readOnly
+                                    className="accent-[#1e152a] rounded cursor-pointer shrink-0"
+                                  />
+                                  <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                    {p.images[0] && (
+                                      <img src={p.images[0]} alt="" className="w-7 h-7 object-cover rounded" />
+                                    )}
+                                    <div className="truncate flex-1">
+                                      <div className="font-semibold text-[11px] text-gray-700 truncate leading-tight">{p.name}</div>
+                                      <div className="text-[9px] text-gray-400 leading-none mt-0.5">Code: {p.code || 'N/A'} - Price: PKR {p.price}</div>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          {products.filter(p => {
+                            if (editingProdId && p.id === editingProdId) return false;
+                            return true;
+                          }).length === 0 && (
+                            <div className="text-center text-[10px] text-gray-400 italic py-4 col-span-2">No other products registered in catalog yet.</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Submission Row */}

@@ -205,7 +205,9 @@
         "isLadiesSuit": { "type": "boolean" },
         "isNewArrival": { "type": "boolean" },
         "isHotSelling": { "type": "boolean" },
-        "rating": { "type": "number" }
+        "rating": { "type": "number" },
+        "relatedType": { "type": "string" },
+        "customRelatedIds": { "type": "array" }
       },
       "required": ["id", "name", "shortDetails", "description", "price", "images", "category", "collectionId", "isNewArrival", "isHotSelling", "rating"]
     },

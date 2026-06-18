@@ -12,6 +12,8 @@ interface ProductDetailsProps {
   onSubmitReview: (productId: string, customerName: string, rating: number, comment: string) => void;
   onSubscribe?: (name: string, email: string) => Promise<{ success: boolean; message: string }>;
   subscriptions?: any[];
+  allProducts?: Product[];
+  onProductClick?: (id: string) => void;
 }
 
 export default function ProductDetails({
@@ -22,7 +24,9 @@ export default function ProductDetails({
   onOrderNow,
   onSubmitReview,
   onSubscribe,
-  subscriptions = []
+  subscriptions = [],
+  allProducts = [],
+  onProductClick = () => {}
 }: ProductDetailsProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -56,6 +60,39 @@ export default function ProductDetails({
 
   const totalCalculatedMeters = getRequiredMetersPerSuit() * calcSuitsQty;
   const totalCalculatedCost = product.price * calcSuitsQty;
+
+  // Related/Recommended Products Logic
+  const getRelatedProducts = (): Product[] => {
+    if (!allProducts || allProducts.length === 0) return [];
+    
+    // If custom related is specified and has items
+    if (product.relatedType === 'custom' && product.customRelatedIds && product.customRelatedIds.length > 0) {
+      return allProducts.filter(p => 
+        p.id !== product.id && 
+        product.customRelatedIds?.includes(p.id)
+      );
+    }
+    
+    // Otherwise fallback to "auto": Same collection or same category
+    return allProducts
+      .filter(p => {
+        // Exclude current product
+        if (p.id === product.id) return false;
+        
+        // Match collection ID
+        const matchCol = p.collectionId === product.collectionId || 
+                         (product.collectionIds && p.collectionIds && product.collectionIds.some(id => p.collectionIds?.includes(id)));
+                         
+        // Match category
+        const matchCat = p.category === product.category || 
+                         (product.categories && p.categories && p.categories.some(cat => p.categories?.includes(cat)));
+                         
+        return matchCol || matchCat;
+      })
+      .slice(0, 4); // Limit to top 4 recommendations
+  };
+
+  const relatedList = getRelatedProducts();
 
   const handleWhatsAppInquiry = (customMsgText?: string) => {
     const productCode = product.code || 'N/A';
@@ -630,6 +667,94 @@ Please let me know if you have this yardage available so I can proceed with the 
           </div>
         </div>
       </div>
+
+      {/* Related/Recommended Products Area */}
+      {relatedList.length > 0 && (
+        <div className="mt-16 pt-10 border-t border-[#e1d9cd]">
+          <h2 className="font-serif text-2xl text-[#1e152a] font-extrabold tracking-tight mb-2">
+            You May Also Like
+          </h2>
+          <p className="text-xs text-gray-500 mb-6 font-sans">
+            Explore similar unstitched Premium designer lawn & cotton suit selections from Alhamd Fabrics.
+          </p>
+          
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {relatedList.map((p) => {
+              const hasDiscount = p.isOnSale && p.originalPrice && p.originalPrice > p.price;
+              const discountPercent = hasDiscount && p.originalPrice 
+                ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100) 
+                : 0;
+
+              return (
+                <div 
+                  key={p.id}
+                  onClick={() => {
+                    onProductClick(p.id);
+                    // scroll to top immediately upon selecting a product
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="group cursor-pointer bg-white rounded-xl border border-gray-100 overflow-hidden shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col h-full text-left"
+                >
+                  {/* Photo area with badges */}
+                  <div className="relative aspect-[3/4] bg-[#faf9f6] overflow-hidden">
+                    {p.images[0] ? (
+                      <img 
+                        src={p.images[0]} 
+                        alt={p.name} 
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105" 
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-stone-300 font-bold bg-stone-50 text-[10px]">NO IMAGE</div>
+                    )}
+                    
+                    {/* Tags overlay */}
+                    {p.promoTag && (
+                      <span className="absolute top-2 left-2 bg-[#1e152a] text-[#f1ebd9] text-[9px] font-bold px-2 py-0.5 rounded tracking-wide shadow-xs font-sans">
+                        {p.promoTag}
+                      </span>
+                    )}
+
+                    {hasDiscount && (
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded tracking-wide shadow-xs font-sans">
+                        -{discountPercent}% OFF
+                      </span>
+                    )}
+                    
+                    {/* Hot label */}
+                    {p.isHotSelling && !hasDiscount && (
+                      <span className="absolute top-2 right-2 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded tracking-wide shadow-xs font-sans">
+                        🔥 HOT
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Pricing / Meta details */}
+                  <div className="p-3.5 flex-grow flex flex-col justify-between space-y-2">
+                    <div className="space-y-1">
+                      <span className="block text-[10px] uppercase text-amber-600 font-extrabold tracking-wider">{p.category}</span>
+                      <h3 className="font-serif font-bold text-xs sm:text-sm text-gray-800 group-hover:text-amber-700 transition-colors line-clamp-1">{p.name}</h3>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="space-y-0.5">
+                        <span className="block text-xs font-extrabold text-[#1e152a]">PKR {formatPKR(p.price)}</span>
+                        {hasDiscount && p.originalPrice && (
+                          <span className="block text-[10px] text-gray-400 line-through">PKR {formatPKR(p.originalPrice)}</span>
+                        )}
+                      </div>
+                      
+                      <div className="w-7 h-7 bg-[#1e152a]/5 rounded-full flex items-center justify-center text-[#1e152a] group-hover:bg-[#1e152a] group-hover:text-[#f1ebd9] transition-all">
+                        <Plus size={14} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

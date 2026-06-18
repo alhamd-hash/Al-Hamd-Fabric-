@@ -30,6 +30,8 @@ export interface Product {
   isOnSale?: boolean;
   originalPrice?: number;
   promoTag?: string;
+  relatedType?: 'auto' | 'custom';
+  customRelatedIds?: string[];
 }
 
 export interface Collection {

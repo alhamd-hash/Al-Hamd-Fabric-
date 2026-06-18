@@ -1206,6 +1206,8 @@ export default function App() {
             onOrderNow={handleOrderNow}
             onSubmitReview={handleSubmitReview}
             subscriptions={subscriptions}
+            allProducts={products}
+            onProductClick={(id) => setSelectedProductId(id)}
             onSubscribe={async (name: string, email: string) => {
               const trimmedEmail = email.trim();
               const trimmedName = name.trim();

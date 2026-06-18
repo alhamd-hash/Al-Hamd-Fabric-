@@ -75,6 +75,8 @@ export interface Order {
   status: OrderStatus;
   createdAt: string; // ISO string
   isReceived?: boolean;
+  couponCode?: string;
+  couponDiscount?: number;
 }
 
 export interface Review {
@@ -138,5 +140,15 @@ export interface SeoSettings {
   description: string;
   keywords: string;
   updatedAt?: string;
+}
+
+export interface Coupon {
+  id: string; // the coupon code (e.g. SUMMER300)
+  discountType: 'flat' | 'percentage';
+  discountValue: number;
+  applyTo: 'all' | 'specific';
+  productIds: string[]; // specific product ids
+  active: boolean;
+  createdAt: string;
 }
 

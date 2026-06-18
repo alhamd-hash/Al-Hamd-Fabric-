@@ -4,7 +4,7 @@ import {
   MapPin, Heart, Share2, Facebook, Instagram, Send, Sparkles, CheckCircle2, ChevronRight, ArrowRight, CornerDownRight, Loader, Tag, ShieldAlert,
   Lock, AlertTriangle
 } from 'lucide-react';
-import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, Category, SeoSettings } from './types';
+import { Product, Collection, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, Category, SeoSettings, Coupon } from './types';
 import {
   getStoredProducts, saveStoredProducts,
   getStoredCollections, saveStoredCollections,
@@ -43,7 +43,10 @@ import {
   listenToMarketingSettings,
   saveMarketingSettingsToFirestore,
   listenToSeoSettings,
-  saveSeoSettingsToFirestore
+  saveSeoSettingsToFirestore,
+  addCouponToFirestore,
+  deleteCouponFromFirestore,
+  listenToCoupons
 } from './firebase';
 import {
   initPixel,
@@ -93,6 +96,7 @@ export default function App() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [notifications, setNotifications] = useState<NewsletterNotification[]>([]);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
 
   // Dynamic premium bootstrap - active spinner ONLY when there's no stored cached products, collections or categories
   const [isSyncing, setIsSyncing] = useState(() => {
@@ -246,6 +250,15 @@ export default function App() {
       }
     );
 
+    const unsubscribeCoupons = listenToCoupons(
+      (firestoreCoupons) => {
+        setCoupons(firestoreCoupons);
+      },
+      (error) => {
+        console.warn('Firestore coupons sync deactivated:', error);
+      }
+    );
+
     // Bind real-time banners sync from Firestore
     const storedBanners = localStorage.getItem('alhamd_banners');
     if (storedBanners) {
@@ -266,6 +279,7 @@ export default function App() {
       unsubscribeProducts();
       unsubscribeCollections();
       unsubscribeCategories();
+      unsubscribeCoupons();
     };
   }, []);
 
@@ -905,6 +919,26 @@ export default function App() {
     }
   };
 
+  const handleAddCoupon = async (coupon: Coupon) => {
+    const updated = [coupon, ...coupons];
+    setCoupons(updated);
+    try {
+      await addCouponToFirestore(coupon);
+    } catch (err) {
+      console.error('Failed to save coupon to Firestore:', err);
+    }
+  };
+
+  const handleDeleteCoupon = async (id: string) => {
+    const updated = coupons.filter(c => c.id !== id);
+    setCoupons(updated);
+    try {
+      await deleteCouponFromFirestore(id);
+    } catch (err) {
+      console.error('Failed to delete coupon from Firestore:', err);
+    }
+  };
+
   const handleAddProduct = async (prod: Product) => {
     const updated = [prod, ...products];
     setProducts(updated);
@@ -1332,6 +1366,7 @@ export default function App() {
               onSubmitOrder={handleSubmitOrder}
               onCancel={() => handleNavigation('home')}
               onClearCart={handleClearCart}
+              coupons={coupons}
             />
           )
         ) : currentView === 'admin' ? (
@@ -1433,6 +1468,9 @@ export default function App() {
                 onLogout={() => setIsAdminAuthenticated(false)}
                 seoSettings={seoSettings}
                 onSaveSeoSettings={saveSeoSettingsToFirestore}
+                coupons={coupons}
+                onAddCoupon={handleAddCoupon}
+                onDeleteCoupon={handleDeleteCoupon}
               />
             </Suspense>
           )

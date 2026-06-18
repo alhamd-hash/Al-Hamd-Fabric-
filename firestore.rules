@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // Helper: Basic ID format constraint to block poisoning attacks
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     // Helper: Extract incoming resource data map
@@ -47,7 +47,9 @@ service cloud.firestore {
         incoming().createdAt is string &&
         (!('whatsappNumber' in incoming().keys()) || (incoming().whatsappNumber is string && incoming().whatsappNumber.size() <= 30)) &&
         (!('advanceProvider' in incoming().keys()) || (incoming().advanceProvider is string)) &&
-        (!('paymentReceiptImage' in incoming().keys()) || (incoming().paymentReceiptImage is string))
+        (!('paymentReceiptImage' in incoming().keys()) || (incoming().paymentReceiptImage is string)) &&
+        (!('couponCode' in incoming().keys()) || (incoming().couponCode is string)) &&
+        (!('couponDiscount' in incoming().keys()) || (incoming().couponDiscount is number))
       );
 
       // Allow updating order status and payment fields
@@ -180,6 +182,11 @@ service cloud.firestore {
         incoming().enabled is bool
       );
       allow delete: if true;
+    }
+
+    // Match rules for "coupons" collection
+    match /coupons/{couponId} {
+      allow read, write: if true;
     }
   }
 }

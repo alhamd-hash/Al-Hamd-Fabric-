@@ -14,7 +14,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Order, Review, OrderStatus, HomeBanner, Product, Collection, Category, MarketingSettings, SeoSettings } from './types';
+import { Order, Review, OrderStatus, HomeBanner, Product, Collection, Category, MarketingSettings, SeoSettings, Coupon } from './types';
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
@@ -454,6 +454,48 @@ export function listenToSeoSettings(onUpdate: (settings: SeoSettings | null) => 
       onError(error);
     } else {
       handleFirestoreError(error, OperationType.GET, `${SETTINGS_PATH}/seo_config`);
+    }
+  });
+}
+
+// --- Dynamic Coupons CRUD ---
+const COUPONS_PATH = 'coupons';
+
+export async function addCouponToFirestore(coupon: Coupon): Promise<void> {
+  const docRef = doc(db, COUPONS_PATH, coupon.id);
+  try {
+    const cleaned = removeUndefinedFields(coupon);
+    console.log('addCouponToFirestore cleaned payload:', JSON.stringify(cleaned));
+    await setDoc(docRef, cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${COUPONS_PATH}/${coupon.id}`);
+  }
+}
+
+export async function deleteCouponFromFirestore(couponId: string): Promise<void> {
+  const docRef = doc(db, COUPONS_PATH, couponId);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${COUPONS_PATH}/${couponId}`);
+  }
+}
+
+export function listenToCoupons(onUpdate: (coupons: Coupon[]) => void, onError?: (err: Error) => void) {
+  const couponsCol = collection(db, COUPONS_PATH);
+  return onSnapshot(couponsCol, (snapshot) => {
+    const list: Coupon[] = [];
+    snapshot.forEach((d) => {
+      list.push(d.data() as Coupon);
+    });
+    // Sort descending by createdAt
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    onUpdate(list);
+  }, (error) => {
+    if (onError) {
+      onError(error);
+    } else {
+      handleFirestoreError(error, OperationType.GET, COUPONS_PATH);
     }
   });
 }

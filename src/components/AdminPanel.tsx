@@ -3,7 +3,7 @@ import {
   Lock, Settings, ShoppingBag, MessageSquare, Plus, Trash2, Edit2, Filter,
   Calendar, Check, X, LogOut, CheckCircle, Flame, Mail, Send, Eye, Users, AlertTriangle, FileText, Sparkles, Tag, Upload, Calculator, Loader, Globe
 } from 'lucide-react';
-import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, MarketingSettings, SeoSettings } from '../types';
+import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, MarketingSettings, SeoSettings, Coupon } from '../types';
 import { formatPKR, compressImage } from '../utils';
 import { listenToMarketingSettings, saveMarketingSettingsToFirestore } from '../firebase';
 import { verifyPixelConnection } from '../pixelService';
@@ -41,6 +41,9 @@ interface AdminPanelProps {
   onLogout?: () => void;
   seoSettings: SeoSettings | null;
   onSaveSeoSettings: (settings: SeoSettings) => Promise<void>;
+  coupons?: Coupon[];
+  onAddCoupon?: (coupon: Coupon) => void;
+  onDeleteCoupon?: (id: string) => void;
 }
 
 export default function AdminPanel({
@@ -75,7 +78,10 @@ export default function AdminPanel({
   isAuthenticatedProp = false,
   onLogout,
   seoSettings,
-  onSaveSeoSettings
+  onSaveSeoSettings,
+  coupons = [],
+  onAddCoupon,
+  onDeleteCoupon
 }: AdminPanelProps) {
   // Authentication State
   const [password, setPassword] = useState('');
@@ -89,7 +95,7 @@ export default function AdminPanel({
   }, [isAuthenticatedProp]);
 
   // Dashboard Sub-views
-  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products' | 'marketing_pixel' | 'seo'>('orders');
+  const [currentTab, setCurrentTab] = useState<'orders' | 'reviews' | 'banners' | 'collections' | 'categories' | 'subscribers' | 'products' | 'marketing_pixel' | 'seo' | 'coupons'>('orders');
 
   // --- Admin SEO Tab States ---
   const [seoFormTitle, setSeoFormTitle] = useState('');
@@ -229,6 +235,16 @@ export default function AdminPanel({
 
   const [bannerIdToDelete, setBannerIdToDelete] = useState<string | null>(null);
   const [activeConfirmKey, setActiveConfirmKey] = useState<string | null>(null);
+
+  // --- New/Edit Coupon Form States ---
+  const [showCouponForm, setShowCouponForm] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscountType, setCouponDiscountType] = useState<'flat' | 'percentage'>('flat');
+  const [couponDiscountValue, setCouponDiscountValue] = useState(0);
+  const [couponApplyTo, setCouponApplyTo] = useState<'all' | 'specific'>('all');
+  const [couponSelectedProductIds, setCouponSelectedProductIds] = useState<string[]>([]);
+  const [couponActive, setCouponActive] = useState(true);
+  const [couponSearchProduct, setCouponSearchProduct] = useState('');
 
   // Interactive Delete Assistant states
   const [deleteWizardType, setDeleteWizardType] = useState<'gents-col' | 'gents-cat' | 'ladies-col' | 'ladies-cat' | null>(null);
@@ -1051,6 +1067,22 @@ export default function AdminPanel({
             </span>
           </button>
 
+          <button
+            onClick={() => setCurrentTab('coupons')}
+            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              currentTab === 'coupons' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
+            }`}
+            id="admin-sidebar-tab-coupons"
+          >
+            <span className="flex items-center gap-2">
+              <Tag size={14} className="text-[#c5a880]" />
+              Manage Coupons
+            </span>
+            <span className="bg-purple-100 text-purple-800 border border-purple-200 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+              Promo Codes
+            </span>
+          </button>
+
           {onRestoreDefaults && (
             <div className="mt-4 pt-4 border-t border-gray-100 text-left">
               <span className="text-[10px] font-bold text-[#c5a880] uppercase tracking-widest block px-2.5 mb-2">Db Utilities</span>
@@ -1236,6 +1268,13 @@ export default function AdminPanel({
                             </span>
                           )}
 
+                          {order.couponCode && (
+                            <span className="bg-emerald-50 text-emerald-800 border border-[#b2e1bf] px-2 py-0.5 rounded-sm text-[9px] font-extrabold tracking-wide uppercase flex items-center gap-1">
+                              <Tag size={10} className="stroke-[3]" />
+                              PROMO CODE: {order.couponCode}
+                            </span>
+                          )}
+
                           <span className={`px-2 py-0.5 rounded-sm text-[9px] font-bold uppercase tracking-wider ${
                             order.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-amber-50 text-amber-800 border border-amber-100'
                           }`}>
@@ -1362,11 +1401,24 @@ export default function AdminPanel({
                               <div className="text-gray-500">
                                 <span>Subtotal:</span> &nbsp;<strong className="text-gray-700">{formatPKR(order.subtotal)}</strong>
                               </div>
-                              <div className="text-gray-500">
+                              {order.couponCode && (
+                                <div className="text-emerald-700 flex items-center justify-end gap-1 text-[11px] font-bold">
+                                  <Tag size={12} className="inline-block shrink-0 stroke-[2.5]" />
+                                  <span>Coupon ({order.couponCode}):</span> &nbsp;
+                                  <strong className="text-emerald-700 font-mono">-{formatPKR(order.couponDiscount || 0)}</strong>
+                                </div>
+                              )}
+                              {order.paymentMethod === 'advance' && (
+                                <div className="text-amber-700 flex items-center justify-end gap-1 text-[11px] font-bold">
+                                  <span>Advance Discount:</span> &nbsp;
+                                  <strong className="text-amber-700 font-mono">-PKR 200</strong>
+                                </div>
+                              )}
+                              <div className="text-gray-500 font-sans">
                                 <span>Delivery Surcharge:</span> &nbsp;<strong className="text-gray-700">{formatPKR(order.deliveryCharges)}</strong>
                               </div>
                               <div className="text-sm font-bold pt-1.5 border-t border-[#f1ebd9] text-[#1e152a]">
-                                <span>Grand Total:</span> &nbsp;<span className="text-[#c5a880] text-sm font-extrabold">{formatPKR(order.total)}</span>
+                                <span>Grand Total:</span> &nbsp;<span className="text-[#c5a880] text-sm font-extrabold font-sans">{formatPKR(order.total)}</span>
                               </div>
                             </>
                           )}
@@ -4390,6 +4442,337 @@ export default function AdminPanel({
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: COUPON MANAGEMENT */}
+          {currentTab === 'coupons' && (
+            <div className="space-y-6 animate-fade-in leading-relaxed text-xs">
+              <div className="pb-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#1e152a]">Discount Coupon Codes Manager</h3>
+                  <p className="text-xs text-gray-400">
+                    Generate and manage promotional coupon codes, less flat price or percentages, and define applicability constraints.
+                  </p>
+                </div>
+                <div>
+                  <button
+                    onClick={() => {
+                      setCouponCode('');
+                      setCouponDiscountType('flat');
+                      setCouponDiscountValue(0);
+                      setCouponApplyTo('all');
+                      setCouponSelectedProductIds([]);
+                      setCouponActive(true);
+                      setShowCouponForm(!showCouponForm);
+                    }}
+                    className="px-4 py-2 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-extrabold uppercase text-[10px] tracking-widest rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs animate-none"
+                  >
+                    {showCouponForm ? <X size={12} className="stroke-[3]" /> : <Plus size={12} className="stroke-[3]" />}
+                    {showCouponForm ? 'Close Editor' : 'Generate New Coupon'}
+                  </button>
+                </div>
+              </div>
+
+              {showCouponForm && (
+                <div className="bg-white rounded-xl border border-gray-150 p-5 shadow-xs space-y-4" id="coupon-editor-card">
+                  <span className="font-bold text-[#1e152a] text-sm block border-b pb-2">Create New Coupon Settings</span>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-full text-left">
+                    {/* Code input */}
+                    <div className="space-y-1.5">
+                      <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Coupon Code (Alpha-numeric, uppercase)</label>
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                        placeholder="e.g. SUMMER500"
+                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all uppercase font-semibold"
+                        required
+                      />
+                    </div>
+
+                    {/* Active Status */}
+                    <div className="space-y-1.5">
+                      <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Coupon Status</label>
+                      <div className="flex gap-4 pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={couponActive}
+                            onChange={() => setCouponActive(true)}
+                            className="text-[#1e152a] focus:ring-[#1e152a]"
+                          />
+                          <span className="font-medium text-gray-750 text-xs">Active & Usable</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={!couponActive}
+                            onChange={() => setCouponActive(false)}
+                            className="text-[#1e152a] focus:ring-[#1e152a]"
+                          />
+                          <span className="font-medium text-gray-750 text-xs">Disabled & Hidden</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Discount Type */}
+                    <div className="space-y-1.5">
+                      <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Discount Type</label>
+                      <select
+                        value={couponDiscountType}
+                        onChange={(e) => {
+                          setCouponDiscountType(e.target.value as 'flat' | 'percentage');
+                          setCouponDiscountValue(0);
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all font-semibold"
+                      >
+                        <option value="flat">Flat Price Reduction (PKR Off)</option>
+                        <option value="percentage">Percentage Offset (% Off)</option>
+                      </select>
+                    </div>
+
+                    {/* Discount Value */}
+                    <div className="space-y-1.5">
+                      <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">
+                        {couponDiscountType === 'flat' ? 'Discount Value (in PKR)' : 'Discount Percentage (e.g. 10 for 10% off)'}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={couponDiscountValue || ''}
+                        onChange={(e) => setCouponDiscountValue(Number(e.target.value))}
+                        placeholder={couponDiscountType === 'flat' ? 'e.g. 500' : 'e.g. 15'}
+                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all font-semibold"
+                        required
+                      />
+                    </div>
+
+                    {/* Apply To */}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="block text-gray-700 font-bold text-[11px] uppercase tracking-wider">Applicable Products</label>
+                      <select
+                        value={couponApplyTo}
+                        onChange={(e) => setCouponApplyTo(e.target.value as 'all' | 'specific')}
+                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a] focus:bg-white transition-all font-semibold"
+                      >
+                        <option value="all">Work on All Products Store-Wide</option>
+                        <option value="specific">Work Only on Specific Selected Products</option>
+                      </select>
+                    </div>
+
+                    {/* Specific Product Selection widget */}
+                    {couponApplyTo === 'specific' && (
+                      <div className="md:col-span-2 space-y-3 bg-stone-50 p-4 rounded-xl border border-gray-150 text-left">
+                        <span className="font-bold text-[#1e152a] text-xs block">Select Specific Products</span>
+                        
+                        {/* Search product filter input */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={couponSearchProduct}
+                            onChange={(e) => setCouponSearchProduct(e.target.value)}
+                            placeholder="Type product model code or name to search..."
+                            className="w-full px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden"
+                          />
+                        </div>
+
+                        {/* Search result and match select list */}
+                        <div className="max-h-[160px] overflow-y-auto space-y-1.5 pr-1 font-sans">
+                          {products
+                            .filter(p => !couponSearchProduct || p.name.toLowerCase().includes(couponSearchProduct.toLowerCase()) || p.id.toLowerCase().includes(couponSearchProduct.toLowerCase()))
+                            .map((prod) => {
+                              const isSelected = couponSelectedProductIds.includes(prod.id);
+                              return (
+                                <div key={prod.id} className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-gray-100 shadow-3xs text-[11px]">
+                                  <div className="flex items-center gap-2">
+                                    {prod.images?.[0] && (
+                                      <img referrerPolicy="no-referrer" src={prod.images[0]} alt="" className="w-8 h-8 rounded object-cover" />
+                                    )}
+                                    <div className="text-left">
+                                      <span className="font-bold text-gray-800 block">{prod.name}</span>
+                                      <span className="font-mono text-[9px] text-gray-400">{prod.id} • {formatPKR(prod.price)}</span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setCouponSelectedProductIds(couponSelectedProductIds.filter(id => id !== prod.id));
+                                      } else {
+                                        setCouponSelectedProductIds([...couponSelectedProductIds, prod.id]);
+                                      }
+                                    }}
+                                    className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100'
+                                        : 'bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                                    }`}
+                                  >
+                                    {isSelected ? 'Remove' : 'Select'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                        </div>
+
+                        {/* Selected product badges */}
+                        {couponSelectedProductIds.length > 0 && (
+                          <div className="pt-2 border-t border-gray-200/60 text-left">
+                            <span className="text-[10px] font-bold uppercase text-gray-400 block mb-1.5">Selected Products ({couponSelectedProductIds.length}):</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {couponSelectedProductIds.map(id => {
+                                const matched = products.find(p => p.id === id);
+                                return (
+                                  <span key={id} className="inline-flex items-center gap-1 bg-[#1e152a] text-[#f1ebd9] px-2 py-0.5 rounded text-[10px] uppercase font-medium">
+                                    <span className="truncate max-w-[150px]">{matched ? matched.name : id}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setCouponSelectedProductIds(couponSelectedProductIds.filter(x => x !== id))}
+                                      className="text-red-300 hover:text-red-500 font-extrabold focus:outline-none ml-1 cursor-pointer"
+                                    >
+                                      ×
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submit trigger button */}
+                  <div className="pt-4 border-t border-gray-150 flex items-center justify-between gap-4 font-sans text-left">
+                    <span className="text-[10px] text-gray-400 select-none">
+                      Dynamic coupons are parsed safely across checkout modules.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!couponCode.trim()) {
+                          alert('Please enter a unique alphanumeric coupon code.');
+                          return;
+                        }
+                        if (couponDiscountValue <= 0) {
+                          alert('Please enter a valid discount value greater than zero.');
+                          return;
+                        }
+                        if (couponApplyTo === 'specific' && couponSelectedProductIds.length === 0) {
+                          alert('Please select at least one applicable product for the specific coupon constraint.');
+                          return;
+                        }
+
+                        const couponObj: Coupon = {
+                          id: couponCode.trim().toUpperCase(),
+                          discountType: couponDiscountType,
+                          discountValue: couponDiscountValue,
+                          applyTo: couponApplyTo,
+                          productIds: couponApplyTo === 'all' ? [] : couponSelectedProductIds,
+                          active: couponActive,
+                          createdAt: new Date().toISOString()
+                        };
+
+                        if (onAddCoupon) {
+                          onAddCoupon(couponObj);
+                        }
+
+                        // Reset states
+                        setShowCouponForm(false);
+                      }}
+                      className="px-5 py-2.5 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-extrabold uppercase text-[10px] tracking-widest rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
+                    >
+                      <Check size={12} className="stroke-[3]" />
+                      Publish Promo Code
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Coupons List View */}
+              <div className="bg-white rounded-xl border border-gray-150 p-5 shadow-xs whitespace-normal text-left">
+                <span className="font-bold text-[#1e152a] text-sm block border-b pb-3.5 mb-4">Active & Saved Promos</span>
+
+                {coupons.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 space-y-1.5">
+                    <Tag size={28} className="mx-auto text-gray-300 stroke-[1.5]" />
+                    <p className="font-serif font-bold text-[#1e152a]">No Promotions Created Yet</p>
+                    <p className="text-[10.5px] max-w-xs mx-auto text-gray-500 font-sans">
+                      Generate clean promotional campaign codes to provide discounts on Pakistan dispatch orders.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {coupons.map((coupon) => (
+                      <div key={coupon.id} className="border border-gray-200 rounded-xl p-4 space-y-3 shadow-3xs relative overflow-hidden bg-stone-50/50">
+                        {/* Status absolute badge */}
+                        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                          <span className={`inline-block w-2.5 h-2.5 rounded-full ${coupon.active ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+                          <span className={`text-[9px] font-extrabold uppercase tracking-widest ${coupon.active ? 'text-emerald-700' : 'text-gray-400'}`}>
+                            {coupon.active ? 'Active' : 'Disabled'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-gray-400 uppercase tracking-widest block font-sans">Campaign Code</span>
+                          <strong className="text-sm font-mono tracking-wider font-extrabold text-[#1e152a] select-all bg-white border px-2.5 py-1 rounded inline-block shadow-3xs uppercase">
+                            {coupon.id}
+                          </strong>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[11px] font-sans">
+                          <div>
+                            <span className="text-gray-400 block font-light">Offset:</span>
+                            <strong className="text-gray-950">
+                              {coupon.discountType === 'flat' ? `${formatPKR(coupon.discountValue)} Off` : `${coupon.discountValue}% Off`}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 block font-light">Constraint:</span>
+                            <strong className="text-gray-950 uppercase text-[10px]">
+                              {coupon.applyTo === 'all' ? 'Store-wide' : `${coupon.productIds?.length || 0} Products`}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {coupon.applyTo === 'specific' && coupon.productIds && coupon.productIds.length > 0 && (
+                          <div className="pt-2 border-t border-gray-200/50">
+                            <span className="text-[9.5px] text-gray-400 block mb-1">Applicable models:</span>
+                            <div className="flex flex-wrap gap-1 max-h-[50px] overflow-y-auto no-scrollbar">
+                              {coupon.productIds.map(pid => {
+                                const matched = products.find(p => p.id === pid);
+                                return (
+                                  <span key={pid} className="bg-white border text-gray-600 text-[9px] px-1.5 py-0.2 rounded font-sans leading-none">
+                                    {matched ? matched.name : pid}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="pt-2.5 border-t border-gray-200/50 flex items-center justify-between">
+                          <span className="text-[9px] text-gray-400 font-mono">Created: {new Date(coupon.createdAt).toLocaleDateString()}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onDeleteCoupon) {
+                                onDeleteCoupon(coupon.id);
+                              }
+                            }}
+                            className="text-red-500 hover:text-white p-1 hover:bg-rose-500 rounded-md transition-all font-bold text-xs flex items-center gap-1 cursor-pointer hover:bg-rose-500"
+                          >
+                            <Trash2 size={13} />
+                            <span>Remove</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

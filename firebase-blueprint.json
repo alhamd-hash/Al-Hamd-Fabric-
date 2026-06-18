@@ -235,6 +235,41 @@
         }
       },
       "required": ["id", "pixelId", "enabled"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount coupon code settings",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The coupon code (e.g. SUMMER300)"
+        },
+        "discountType": {
+          "type": "string",
+          "enum": ["flat", "percentage"]
+        },
+        "discountValue": {
+          "type": "number",
+          "description": "Value of discount"
+        },
+        "applyTo": {
+          "type": "string",
+          "enum": ["all", "specific"]
+        },
+        "productIds": {
+          "type": "array",
+          "description": "Product IDs this coupon applies to when applyTo is 'specific'"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "discountType", "discountValue", "applyTo", "productIds", "active", "createdAt"]
     }
   },
   "firestore": {
@@ -265,6 +300,10 @@
     "/settings/{settingsId}": {
       "schema": "MarketingSettings",
       "description": "Dynamic configurations for analytics, marketing tracking systems"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Discount coupon codes"
     }
   }
 }

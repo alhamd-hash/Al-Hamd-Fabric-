@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { CreditCard, ShoppingBag, Truck, Check, HelpCircle, ShieldCheck, Lock, ArrowRight, AlertCircle, RefreshCw, Upload } from 'lucide-react';
-import { Product, Order } from '../types';
+import { CreditCard, ShoppingBag, Truck, Check, HelpCircle, ShieldCheck, Lock, ArrowRight, AlertCircle, RefreshCw, Upload, Tag, X } from 'lucide-react';
+import { Product, Order, Coupon } from '../types';
 import { formatPKR, calculateDeliveryCharges, compressImage } from '../utils';
 
 interface CheckoutFormProps {
@@ -8,13 +8,15 @@ interface CheckoutFormProps {
   onSubmitOrder: (formData: any) => Promise<string>; // returns the new orderId
   onCancel: () => void;
   onClearCart: () => void;
+  coupons?: Coupon[];
 }
 
 export default function CheckoutForm({
   cart,
   onSubmitOrder,
   onCancel,
-  onClearCart
+  onClearCart,
+  coupons = []
 }: CheckoutFormProps) {
   // Customer details form state
   const [customerName, setCustomerName] = useState('');
@@ -45,10 +47,43 @@ export default function CheckoutForm({
   const [snapshotPaymentMethod, setSnapshotPaymentMethod] = useState<'cod' | 'advance'>('cod');
   const [snapshotAdvanceProvider, setSnapshotAdvanceProvider] = useState<'jazzcash' | 'easypaisa'>('jazzcash');
 
+  // --- Promo Coupon States ---
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponError, setCouponError] = useState('');
+  const [couponSuccess, setCouponSuccess] = useState('');
+  const [snapshotCouponDiscount, setSnapshotCouponDiscount] = useState(0);
+  const [snapshotCouponCode, setSnapshotCouponCode] = useState('');
+
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const deliveryCharges = calculateDeliveryCharges(subtotal);
   const advanceDiscount = paymentMethod === 'advance' ? 200 : 0;
-  const grandTotal = Math.max(0, subtotal + deliveryCharges - advanceDiscount);
+
+  // Calculate dynamic coupon discount amount
+  const getCouponDiscount = (coupon: Coupon | null) => {
+    if (!coupon || !coupon.active) return 0;
+    if (coupon.applyTo === 'all') {
+      if (coupon.discountType === 'flat') {
+        return coupon.discountValue;
+      } else {
+        return Math.floor((subtotal * coupon.discountValue) / 100);
+      }
+    } else {
+      // Apply only to specific product IDs
+      const matchedItems = cart.filter(item => coupon.productIds?.includes(item.product.id));
+      if (matchedItems.length === 0) return 0;
+      
+      if (coupon.discountType === 'flat') {
+        return coupon.discountValue;
+      } else {
+        const applicableSum = matchedItems.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
+        return Math.floor((applicableSum * coupon.discountValue) / 100);
+      }
+    }
+  };
+
+  const couponDiscount = getCouponDiscount(appliedCoupon);
+  const grandTotal = Math.max(0, subtotal + deliveryCharges - advanceDiscount - couponDiscount);
 
   const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -131,6 +166,8 @@ export default function CheckoutForm({
         subtotal,
         deliveryCharges,
         total: grandTotal,
+        couponCode: appliedCoupon ? appliedCoupon.id : '',
+        couponDiscount: couponDiscount,
         ...(paymentMethod === 'advance' ? {
           advanceProvider,
           paymentReceiptImage
@@ -142,6 +179,8 @@ export default function CheckoutForm({
       setSnapshotGrandTotal(grandTotal);
       setSnapshotPaymentMethod(paymentMethod);
       setSnapshotAdvanceProvider(advanceProvider);
+      setSnapshotCouponDiscount(couponDiscount);
+      setSnapshotCouponCode(appliedCoupon ? appliedCoupon.id : '');
 
       setPurchasedSnapshot(cart.map(item => ({
         name: item.product.name,
@@ -242,6 +281,18 @@ export default function CheckoutForm({
                 <span>Shipping Surcharge:</span>
                 <strong className="font-mono text-gray-750">{formatPKR(snapshotDeliveryCharges)}</strong>
               </div>
+              {snapshotCouponDiscount > 0 && (
+                <div className="flex justify-between text-purple-700 font-semibold">
+                  <span>Promo Code Applied ({snapshotCouponCode}):</span>
+                  <strong className="font-mono">-{formatPKR(snapshotCouponDiscount)}</strong>
+                </div>
+              )}
+              {snapshotPaymentMethod === 'advance' && (
+                <div className="flex justify-between text-indigo-700 font-semibold">
+                  <span>Advance Payment Discount:</span>
+                  <strong className="font-mono">-PKR 200</strong>
+                </div>
+              )}
               <div className="flex justify-between text-[#1e152a] font-extrabold text-xs pt-2.5 border-t border-[#e1d9cd]/60">
                 <span className="uppercase tracking-wider text-[10px] text-gray-900">Total Bill Due:</span>
                 <span className="text-sm font-black text-[#c5a880] font-sans">{formatPKR(snapshotGrandTotal)}</span>
@@ -615,6 +666,87 @@ export default function CheckoutForm({
             ))}
           </div>
 
+          {/* Promo Coupon Entry field */}
+          <div className="py-3.5 bg-stone-50 rounded-xl p-3 border border-gray-150 space-y-2 mt-2 text-left">
+            <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">Promo Coupon Discount</span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="ENTER CODE (e.g. SUMMER500)"
+                value={couponCodeInput}
+                onChange={(e) => {
+                  setCouponCodeInput(e.target.value.toUpperCase().trim());
+                  setCouponError('');
+                  setCouponSuccess('');
+                }}
+                className="bg-white border text-gray-800 rounded px-2.5 py-1.5 text-xs font-semibold focus:outline-hidden focus:border-[#1e152a] uppercase flex-1 shadow-3xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!couponCodeInput) {
+                    setCouponError('Please enter a coupon code.');
+                    return;
+                  }
+                  const matched = coupons.find(c => c.id.toUpperCase() === couponCodeInput.toUpperCase());
+                  if (!matched) {
+                    setCouponError('Invalid coupon code. Please try again.');
+                    setAppliedCoupon(null);
+                    return;
+                  }
+                  if (!matched.active) {
+                    setCouponError('This promo coupon has expired or is deactivated.');
+                    setAppliedCoupon(null);
+                    return;
+                  }
+                  
+                  if (matched.applyTo === 'specific') {
+                    const matchedItems = cart.filter(item => matched.productIds?.includes(item.product.id));
+                    if (matchedItems.length === 0) {
+                      setCouponError('This coupon does not apply to any suite inside your Shopping cart.');
+                      setAppliedCoupon(null);
+                      return;
+                    }
+                  }
+                  
+                  setAppliedCoupon(matched);
+                  setCouponSuccess('Promotion coupon code applied successfully!');
+                  setCouponError('');
+                }}
+                className="bg-[#1e152a] text-[#f1ebd9] px-3.5 py-1.5 rounded text-xs font-bold uppercase hover:bg-[#c5a880] hover:text-black transition-colors shrink-0 cursor-pointer"
+              >
+                Apply
+              </button>
+            </div>
+
+            {couponError && (
+              <p className="text-[10.5px] text-red-650 font-medium leading-none mt-1 text-left">⚠️ {couponError}</p>
+            )}
+            {couponSuccess && (
+              <p className="text-[10.5px] text-emerald-600 font-bold leading-none mt-1 text-left">✓ {couponSuccess}</p>
+            )}
+
+            {appliedCoupon && (
+              <div className="flex items-center justify-between text-[10.5px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 mt-1 rounded-md animate-fade-in text-left">
+                <span className="font-bold uppercase tracking-wider font-sans leading-none">
+                  {appliedCoupon.id} ({appliedCoupon.discountType === 'flat' ? `${formatPKR(appliedCoupon.discountValue)} Off` : `${appliedCoupon.discountValue}% Off`})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppliedCoupon(null);
+                    setCouponCodeInput('');
+                    setCouponSuccess('');
+                    setCouponError('');
+                  }}
+                  className="text-red-500 hover:text-red-700 font-bold focus:outline-hidden scale-110 ml-2 cursor-pointer leading-none"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Settlement ledger rules */}
           <div className="pt-4 border-t border-gray-100 space-y-2 text-xs">
             <div className="flex justify-between text-gray-500">
@@ -646,6 +778,16 @@ export default function CheckoutForm({
               <div className="flex justify-between text-emerald-600 font-bold">
                 <span>Advance Payment Relaxation:</span>
                 <span>-{formatPKR(200)}</span>
+              </div>
+            )}
+
+            {couponDiscount > 0 && (
+              <div className="flex justify-between text-purple-700 font-extrabold animate-fade-in">
+                <span className="flex items-center gap-1">
+                  <Tag size={12} />
+                  Coupon Discount ({appliedCoupon?.id}):
+                </span>
+                <span>-{formatPKR(couponDiscount)}</span>
               </div>
             )}
 

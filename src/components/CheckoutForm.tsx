@@ -62,6 +62,11 @@ export default function CheckoutForm({
   // Calculate dynamic coupon discount amount
   const getCouponDiscount = (coupon: Coupon | null) => {
     if (!coupon || !coupon.active) return 0;
+    
+    const now = new Date();
+    if (coupon.activationDate && now < new Date(coupon.activationDate)) return 0;
+    if (coupon.expiryDate && now > new Date(coupon.expiryDate)) return 0;
+
     if (coupon.applyTo === 'all') {
       if (coupon.discountType === 'flat') {
         return coupon.discountValue;
@@ -698,6 +703,24 @@ export default function CheckoutForm({
                     setCouponError('This promo coupon has expired or is deactivated.');
                     setAppliedCoupon(null);
                     return;
+                  }
+
+                  const now = new Date();
+                  if (matched.activationDate) {
+                    const activation = new Date(matched.activationDate);
+                    if (now < activation) {
+                      setCouponError(`This promo code is not active yet. It will activate on ${activation.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}.`);
+                      setAppliedCoupon(null);
+                      return;
+                    }
+                  }
+                  if (matched.expiryDate) {
+                    const expiry = new Date(matched.expiryDate);
+                    if (now > expiry) {
+                      setCouponError(`This promo code has expired on ${expiry.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}.`);
+                      setAppliedCoupon(null);
+                      return;
+                    }
                   }
                   
                   if (matched.applyTo === 'specific') {

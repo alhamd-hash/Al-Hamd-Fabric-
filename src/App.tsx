@@ -40,17 +40,11 @@ import {
   addCategoryToFirestore,
   updateCategoryInFirestore,
   deleteCategoryFromFirestore,
-  listenToMarketingSettings,
-  saveMarketingSettingsToFirestore,
-  listenToSeoSettings,
-  saveSeoSettingsToFirestore,
   addCouponToFirestore,
   deleteCouponFromFirestore,
   listenToCoupons
 } from './firebase';
 import {
-  initPixel,
-  disablePixel,
   trackPageView,
   trackViewContent,
   trackAddToCart,
@@ -111,7 +105,12 @@ export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminPasswordValue, setAdminPasswordValue] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
-  const [seoSettings, setSeoSettings] = useState<SeoSettings | null>(null);
+  const [seoSettings, setSeoSettings] = useState<SeoSettings | null>({
+    id: 'seo_config',
+    title: 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics',
+    description: "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits. Real-time updates direct from our database.",
+    keywords: 'Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore'
+  });
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [collectionCategoryFilter, setCollectionCategoryFilter] = useState<string | null>(null);
@@ -283,36 +282,7 @@ export default function App() {
     };
   }, []);
 
-  // --- Meta Facebook Pixel Tracking Hooks ---
-  // Real-time Firestore listener for dynamic Meta Pixel loading
-  useEffect(() => {
-    const unsubscribe = listenToMarketingSettings((settings) => {
-      if (settings && settings.enabled && settings.pixelId) {
-        initPixel(settings.pixelId);
-      } else {
-        disablePixel();
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
-  // Real-time Firestore listener for dynamic SEO Settings loading
-  useEffect(() => {
-    const unsubscribe = listenToSeoSettings((settings) => {
-      if (settings) {
-        setSeoSettings(settings);
-      } else {
-        // Fallback default
-        setSeoSettings({
-          id: 'seo_config',
-          title: 'Al-Hamd Fabrics | Premium Lawn Suits & Unstitched Gents Fabrics',
-          description: "Discover Al-Hamd Fabrics Lahore's exquisite collections of luxury unstitched lawn, premium gents Giza cotton, and festive ceremonial suits. Real-time updates direct from our database.",
-          keywords: 'Al-Hamd Fabrics, Lawn Suits, Unstitched, Gents Fabrics, Cotton, Pakistan Fashion, Lahore'
-        });
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Initialize Google Analytics 4 hook on app startup
   useEffect(() => {
@@ -1486,7 +1456,7 @@ export default function App() {
                 isAuthenticatedProp={isAdminAuthenticated}
                 onLogout={() => setIsAdminAuthenticated(false)}
                 seoSettings={seoSettings}
-                onSaveSeoSettings={saveSeoSettingsToFirestore}
+                onSaveSeoSettings={async () => {}}
                 coupons={coupons}
                 onAddCoupon={handleAddCoupon}
                 onDeleteCoupon={handleDeleteCoupon}

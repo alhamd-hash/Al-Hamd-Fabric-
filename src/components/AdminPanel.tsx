@@ -5,8 +5,6 @@ import {
 } from 'lucide-react';
 import { Product, Collection, Category, Order, Review, Subscription, OrderStatus, NewsletterNotification, HomeBanner, MarketingSettings, SeoSettings, Coupon } from '../types';
 import { formatPKR, compressImage } from '../utils';
-import { listenToMarketingSettings, saveMarketingSettingsToFirestore } from '../firebase';
-import { verifyPixelConnection } from '../pixelService';
 
 interface AdminPanelProps {
   products: Product[];
@@ -247,6 +245,9 @@ export default function AdminPanel({
   const [couponSelectedProductIds, setCouponSelectedProductIds] = useState<string[]>([]);
   const [couponActive, setCouponActive] = useState(true);
   const [couponSearchProduct, setCouponSearchProduct] = useState('');
+  const [couponActivationDate, setCouponActivationDate] = useState('');
+  const [couponExpiryDate, setCouponExpiryDate] = useState('');
+  const [couponActivateNow, setCouponActivateNow] = useState(true);
 
   // Interactive Delete Assistant states
   const [deleteWizardType, setDeleteWizardType] = useState<'gents-col' | 'gents-cat' | 'ladies-col' | 'ladies-cat' | null>(null);
@@ -259,109 +260,15 @@ export default function AdminPanel({
   const [showBulkDeletePanel, setShowBulkDeletePanel] = useState(false);
   const [bulkDeleteConfirmationText, setBulkDeleteConfirmationText] = useState('');
   const [isDeletingOrders, setIsDeletingOrders] = useState(false);
-  const [singleOrderIdToDelete, setSingleOrderIdToDelete] = useState<string | null>(null);
-
-  // --- Meta Pixel Dynamics ---
-  React.useEffect(() => {
-    let active = true;
-    const unsubscribe = listenToMarketingSettings((settings) => {
-      if (!active) return;
-      setIsLoadingPixel(false);
-      if (settings) {
-        setPixelId(settings.pixelId || '');
-        setPixelEnabled(settings.enabled || false);
-      }
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, []);
-
-  const handleSaveMarketingPixel = async (e: React.FormEvent) => {
+  const handleSaveMarketingPixel = (e: React.FormEvent) => {
     e.preventDefault();
-    setPixelSaveStatus('saving');
-    setPixelVerificationState('checking');
-    setPixelError('');
-    setPixelSuccess('');
-    setPixelWarning('');
-    setPixelLatency(null);
-
-    const cleanId = pixelId.trim();
-
-    // 1. Initial Format Verification before handshake
-    if (!cleanId) {
-      setPixelError('Meta Pixel ID cannot be empty.');
-      setPixelSaveStatus('error');
-      setPixelVerificationState('failed');
-      return;
-    }
-    if (!/^\d{10,20}$/.test(cleanId)) {
-      setPixelError('Invalid ID format. Facebook/Meta Pixel IDs must contain ONLY numeric digits (between 10 and 20 digits long).');
-      setPixelSaveStatus('error');
-      setPixelVerificationState('failed');
-      return;
-    }
-
-    // 2. Telemetry and Event Packet Connection Handshake
-    try {
-      const verifyResult = await verifyPixelConnection(cleanId);
-      
-      if (!verifyResult.success) {
-        setPixelVerificationState('failed');
-        setPixelSaveStatus('error');
-        setPixelError(verifyResult.error || 'Connection verification failed. No response was detected from the Meta Pixel servers.');
-        return;
-      }
-
-      // Record telemetry response latency
-      if (verifyResult.latency !== undefined) {
-        setPixelLatency(verifyResult.latency);
-      }
-
-      if (verifyResult.error) {
-        setPixelWarning(verifyResult.error);
-      }
-
-      // 3. Persist Verified Settings to Firestore
-      await saveMarketingSettingsToFirestore({
-        id: 'marketing_pixel',
-        pixelId: cleanId,
-        enabled: pixelEnabled
-      });
-
-      setPixelSuccess(
-        `Alhamdulillah! Your Facebook Meta Pixel has been successfully verified and connected. Response Latency: ${verifyResult.latency ?? '?'}ms.`
-      );
-      setPixelVerificationState('verified');
-      setPixelSaveStatus('saved');
-    } catch (err: any) {
-      console.error('Failed to verify or update pixel config:', err);
-      setPixelError(err?.message || 'Verification failed. Please check your internet connection or try again.');
-      setPixelVerificationState('failed');
-      setPixelSaveStatus('error');
-    }
   };
 
-  const handleSaveSeoSettings = async (e: React.FormEvent) => {
+  const handleSaveSeoSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    setSeoFormStatus('saving');
-    setSeoErrorMessage('');
-    try {
-      await onSaveSeoSettings({
-        id: 'seo_config',
-        title: seoFormTitle.trim(),
-        description: seoFormDescription.trim(),
-        keywords: seoFormKeywords.trim(),
-        updatedAt: new Date().toISOString()
-      });
-      setSeoFormStatus('saved');
-    } catch (err: any) {
-      console.error('Failed to update SEO config:', err);
-      setSeoErrorMessage(err?.message || 'Firestore write error occurred.');
-      setSeoFormStatus('error');
-    }
   };
+
+
 
   // Authentication submission
   const handleLogin = (e: React.FormEvent) => {
@@ -1161,36 +1068,7 @@ export default function AdminPanel({
             )}
           </button>
 
-          <button
-            onClick={() => setCurrentTab('marketing_pixel')}
-            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              currentTab === 'marketing_pixel' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <Settings size={14} className="text-[#c5a880]" />
-              Marketing Pixels
-            </span>
-            <span className="bg-amber-100 text-amber-800 border border-amber-200 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
-              Meta Pixel
-            </span>
-          </button>
 
-          <button
-            onClick={() => setCurrentTab('seo')}
-            className={`w-full flex items-center justify-between px-3 py-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              currentTab === 'seo' ? 'bg-[#1e152a] text-[#f1ebd9]' : 'text-gray-600 hover:bg-gray-50 hover:text-black'
-            }`}
-            id="admin-sidebar-tab-seo"
-          >
-            <span className="flex items-center gap-2">
-              <Globe size={14} className="text-[#c5a880]" />
-              SEO Settings & SERP
-            </span>
-            <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
-              Google SEO
-            </span>
-          </button>
 
           <button
             onClick={() => setCurrentTab('coupons')}
@@ -4298,7 +4176,7 @@ export default function AdminPanel({
           )}
 
           {/* TAB: MARKETING PIXELS */}
-          {currentTab === 'marketing_pixel' && (
+          {false && (
             <div className="space-y-6 animate-fade-in leading-relaxed text-xs">
               <div className="pb-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -4520,7 +4398,7 @@ export default function AdminPanel({
           )}
 
           {/* TAB: SEO & GOOGLE SERP SIMULATOR */}
-          {currentTab === 'seo' && (
+          {false && (
             <div className="space-y-6 animate-fade-in leading-relaxed text-xs">
               <div className="pb-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -4796,6 +4674,9 @@ export default function AdminPanel({
                       setCouponApplyTo('all');
                       setCouponSelectedProductIds([]);
                       setCouponActive(true);
+                      setCouponActivationDate('');
+                      setCouponExpiryDate('');
+                      setCouponActivateNow(true);
                       setShowCouponForm(!showCouponForm);
                     }}
                     className="px-4 py-2 bg-[#1e152a] text-[#f1ebd9] hover:bg-[#c5a880] hover:text-black font-extrabold uppercase text-[10px] tracking-widest rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs animate-none"
@@ -4846,6 +4727,56 @@ export default function AdminPanel({
                           />
                           <span className="font-medium text-gray-750 text-xs">Disabled & Hidden</span>
                         </label>
+                      </div>
+                    </div>
+
+                    {/* Scheduling Options */}
+                    <div className="col-span-full border border-stone-200 bg-stone-50/50 p-4 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                      <div className="space-y-1.5 flex flex-col justify-center">
+                        <label className="block text-gray-750 font-bold text-[11px] uppercase tracking-wider">Activate Now</label>
+                        <label className="relative inline-flex items-center gap-2.5 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={couponActivateNow}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setCouponActivateNow(checked);
+                              if (checked) {
+                                setCouponActive(true);
+                              }
+                            }}
+                            className="w-4 h-4 text-[#1e152a] border-gray-300 rounded focus:ring-[#1e152a] accent-[#1e152a] cursor-pointer"
+                          />
+                          <span className="font-bold text-[#1e152a] text-xs">Activate Immediately</span>
+                        </label>
+                        <p className="text-[10px] text-gray-400 font-light mt-1">If enabled, schedules are bypassed and coupon launches instantly.</p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-gray-750 font-bold text-[11px] uppercase tracking-wider">Activation Start Date & Time</label>
+                        <input
+                          type="datetime-local"
+                          value={couponActivationDate}
+                          onChange={(e) => {
+                            setCouponActivationDate(e.target.value);
+                            if (e.target.value) {
+                              setCouponActivateNow(false);
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a]"
+                        />
+                        <p className="text-[10px] text-gray-400 font-light">Specify when this coupon starts working (Optional).</p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-gray-755 font-bold text-[11px] uppercase tracking-wider">Expiry / Ending Date & Time</label>
+                        <input
+                          type="datetime-local"
+                          value={couponExpiryDate}
+                          onChange={(e) => setCouponExpiryDate(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-sans focus:outline-hidden focus:border-[#1e152a]"
+                        />
+                        <p className="text-[10px] text-gray-400 font-light">Specify when code gets automatically disabled (Optional).</p>
                       </div>
                     </div>
 
@@ -5003,8 +4934,10 @@ export default function AdminPanel({
                           discountValue: couponDiscountValue,
                           applyTo: couponApplyTo,
                           productIds: couponApplyTo === 'all' ? [] : couponSelectedProductIds,
-                          active: couponActive,
-                          createdAt: new Date().toISOString()
+                          active: couponActivateNow ? true : couponActive,
+                          createdAt: new Date().toISOString(),
+                          activationDate: couponActivationDate || undefined,
+                          expiryDate: couponExpiryDate || undefined
                         };
 
                         if (onAddCoupon) {
@@ -5082,6 +5015,23 @@ export default function AdminPanel({
                                 );
                               })}
                             </div>
+                          </div>
+                        )}
+
+                        {(coupon.activationDate || coupon.expiryDate) && (
+                          <div className="pt-2 border-t border-gray-150/60 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[9.5px] text-gray-600 font-sans">
+                            {coupon.activationDate && (
+                              <div>
+                                <span className="text-gray-400 font-light block">Activates:</span>
+                                <span className="font-semibold text-gray-700 font-mono text-[9px]">{new Date(coupon.activationDate).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                              </div>
+                            )}
+                            {coupon.expiryDate && (
+                              <div>
+                                <span className="text-gray-400 font-light block">Expires:</span>
+                                <span className="font-semibold text-rose-600 font-mono text-[9px]">{new Date(coupon.expiryDate).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                              </div>
+                            )}
                           </div>
                         )}
 

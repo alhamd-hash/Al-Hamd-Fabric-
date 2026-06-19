@@ -150,5 +150,7 @@ export interface Coupon {
   productIds: string[]; // specific product ids
   active: boolean;
   createdAt: string;
+  activationDate?: string;
+  expiryDate?: string;
 }
 
